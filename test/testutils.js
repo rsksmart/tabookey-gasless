@@ -6,7 +6,9 @@ const localhostOne = "http://localhost:8090"
 const ethUtils = require('ethereumjs-util');
 const ethJsTx = require('ethereumjs-tx');
 
-const zeroAddr = "0".repeat(40)
+const zeroAddr = "0".repeat(40);
+
+const RSK_VERSION_PREFIX = 'RskJ/'
 
 module.exports = {
 
@@ -15,7 +17,7 @@ module.exports = {
     //options:
     //  verbose: enable background process logging.
     //  stake, delay, txfee, url, relayOwner: parameters to pass to register_new_relay, to stake and register it.
-    //  
+    //
     startRelay: async function (rhub, options) {
         let server = __dirname + "/../build/server/bin/RelayHttpServer"
 
@@ -195,6 +197,11 @@ module.exports = {
             return true;
         console.log("invalid error message: " + error.message + "\n(expected: " + errorMessage + ")")
         assert.ok(false, "invalid error message: " + error.message + "\n(expected: " + errorMessage + ")")
+    },
+
+    isRsk: async function() {
+        const nodeInfo = await web3.eth.getNodeInfo();
+        return nodeInfo.startsWith(RSK_VERSION_PREFIX);
     },
 
     zeroAddr
