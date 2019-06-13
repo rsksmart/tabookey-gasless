@@ -44,6 +44,12 @@ module.exports = {
         return wallet
       },
       network_id: 100
+    },
+    rsk: {
+		verbose: process.env.VERBOSE,
+  		host: "172.17.0.1",
+  		port: 4444,
+        network_id: "*",
     }
   },
   mocha: {
