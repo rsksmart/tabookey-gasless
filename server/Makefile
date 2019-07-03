@@ -31,7 +31,7 @@ $(ETHFILE): Makefile
 	@if [ ! -d ${ETHDIR} ]; then \
 	  git clone ${ETHREPO} --depth=1 --branch=${ETHVERSION} ${ETHDIR} ;\
 	  go get -v -d ./...;\
-	  cp ./src/compat/ethereum.go-ethereum.ethclient.go ${ETHDIR}/ethclient/rsk_compatibility.go ;\
+	  cp ./src/compat/ethereum.go-ethereum.common.hexutil.json.go ${ETHDIR}/common/hexutil/json.go ;\
 	fi
 	touch $(ETHFILE)
 
