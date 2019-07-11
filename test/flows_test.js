@@ -15,7 +15,7 @@ let RelayProvider = require('../src/js/relayclient/RelayProvider')
 
 let options = [
     {title: "Direct-", relay: 0},
-    // {title: "Relayed-", relay: 1}
+    {title: "Relayed-", relay: 1}
 ]
 
 const assertNotEnoughFunds = function(ex, isRsk) {
@@ -80,7 +80,7 @@ options.forEach(params => {
 
         if (params.relay) {
             it(params.title + "enable relay", async function () {
-                rhub.depositFor(sr.address, {value: 1e18})
+                await rhub.depositFor(sr.address, {value: 1e18})
 
                 relay_client_config = {
                     txfee: 60,
@@ -97,7 +97,6 @@ options.forEach(params => {
                 // however, in Truffle, all contracts are built BEFORE the test have started, and COPIED the web3,
                 // so changing the global one is not enough...
                 SampleRecipient.web3.setProvider(relayProvider)
-
             })
         }
 
