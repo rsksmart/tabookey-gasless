@@ -24,6 +24,12 @@ const DEFAULT_HTTP_TIMEOUT = 10000;
 //default gas price (unless client specifies one): the web3.eth.gasPrice*(100+GASPRICE_PERCENT)/100
 const GASPRICE_PERCENT = 20;
 
+const EXPECTED_BROADCAST_ERRORS = [
+    'the tx doesn\'t have the correct nonce',
+    'known transaction',
+    'pending transaction with same hash already exists',
+];
+
 class RelayClient {
     /**
      * create a RelayClient library object, to force contracts to go through a relay.
@@ -244,7 +250,7 @@ class RelayClient {
             // see the EIP for description of the attack
 
             //don't display error for the known-good cases
-            if (!("" + error).match(/the tx doesn't have the correct nonce|known transaction/))
+            if (!("" + error).match(new RegExp(EXPECTED_BROADCAST_ERRORS.join('|'))))
                 console.log("broadcastTx: ", error || result);
 
             if (error) {
@@ -253,6 +259,7 @@ class RelayClient {
                 // the only point is that different node versions return different error strings:
                 // ganache:  "the tx doesn't have the correct nonce"
                 // ropsten: "known transaction"
+                // rsk: "pending transaction with same hash already exists"
             } else {
                 if (result == tx_hash) {
                     //transaction already on chain
