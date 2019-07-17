@@ -306,7 +306,7 @@ class RelayClient {
         let pct = (this.config.gaspriceFactorPercent || GASPRICE_PERCENT);
 
         let network_gas_price = await this.web3.eth.getGasPrice();
-        // Sometimes, xDai netwiork returns '0'
+        // Sometimes, xDai or RSK network returns '0'
         if (!network_gas_price || network_gas_price == 0) {
             network_gas_price = 1e9;
         }
