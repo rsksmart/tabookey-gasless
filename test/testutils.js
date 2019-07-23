@@ -10,6 +10,32 @@ const zeroAddr = "0".repeat(40);
 
 const RSK_VERSION_PREFIX = 'RskJ/'
 
+let _isRsk = null;
+
+const isRsk = async function() {
+    if (_isRsk == null) {
+        const nodeInfo = await web3.eth.getNodeInfo();
+        _isRsk = nodeInfo.startsWith(RSK_VERSION_PREFIX);
+    }
+    return _isRsk;
+};
+
+const sleep = function (ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+};
+
+const buildTxParameters = (parameters) => {
+    if (!_isRsk) {
+        return parameters;
+    }
+
+    const { gas, gasLimit, ...rest } = parameters;
+    return {
+        gas: gas || gasLimit,
+        ...rest
+    };
+};
+
 module.exports = {
 
     //start a background relay process.
@@ -45,10 +71,12 @@ module.exports = {
             relaylog = (msg) => msg.split("\n").forEach(line => console.log("relay-" + proc.pid + "> " + line))
 
         await new Promise((resolve, reject) => {
-
             let lastresponse
             let listener = data => {
                 let str = data.toString().replace(/\s+$/, "")
+                if (str.startsWith('ARIEL')) {
+                    console.log(str)
+                }
                 lastresponse = str
                 relaylog(str)
                 if (str.indexOf("Listening on port") >= 0) {
@@ -103,9 +131,8 @@ module.exports = {
         return proc
 
     },
-    sleep: function (ms) {
-        return new Promise(resolve => setTimeout(resolve, ms));
-    },
+
+    sleep,
 
     stopRelay: function (proc) {
         proc && proc.kill()
@@ -123,29 +150,20 @@ module.exports = {
         await web3.eth.sendTransaction({to: address, from: ownerAccount, value: web3.utils.toWei("1", "ether")})
         let nonce = await web3.eth.getTransactionCount(address)
         let register_data = relayHub.contract.methods.registerRelay(txFee, url).encodeABI()
-        let validTransaction = new ethJsTx({
+        let validTransaction = new ethJsTx(buildTxParameters({
             nonce: nonce,
             gasPrice: 1,
             gasLimit: 1000000,
             to: relayHub.address,
             value: 0,
             data: register_data,
-        });
+        }));
         validTransaction.sign(privKey)
         var raw_tx = '0x' + validTransaction.serialize().toString('hex');
 
-        let promise = new Promise((resolve, reject) => {
-            web3.eth.sendSignedTransaction(raw_tx, (err, res) => {
-                if (err) {
-                    reject(err)
-                }
-                else {
-                    resolve(res)
-                }
-            })
-        })
-        let res = await promise
-        console.log("register_new_relay_with_privkey", res)
+        return web3.eth.sendSignedTransaction(raw_tx).once('transactionHash', (txHash) => {
+            console.log("register_new_relay_with_privkey", txHash)
+        });
     },
 
     increaseTime: function (time) {
@@ -199,9 +217,24 @@ module.exports = {
         assert.ok(false, "invalid error message: " + error.message + "\n(expected: " + errorMessage + ")")
     },
 
-    isRsk: async function() {
-        const nodeInfo = await web3.eth.getNodeInfo();
-        return nodeInfo.startsWith(RSK_VERSION_PREFIX);
+    isRsk,
+
+    buildTxParameters,
+
+    waitBlocks: async (numBlocks, sleepMs) => {
+        sleepMs = sleepMs || 100;
+        const initialBlock = await web3.eth.getBlockNumber();
+        for (;;) {
+            await sleep(sleepMs);
+            const currentBlock = await web3.eth.getBlockNumber();
+            if (currentBlock >= (initialBlock + numBlocks)) {
+                break;
+            }
+        }
+    },
+
+    init: async () => {
+        await isRsk();
     },
 
     zeroAddr
