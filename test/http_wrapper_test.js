@@ -1,8 +1,9 @@
 /* global describe web3 require it */
 const HttpWrapper = require('../src/js/relayclient/HttpWrapper')
 const assert = require('chai').use(require('chai-as-promised')).assert;
+const TestRecipientUtils = artifacts.require("./TestRecipientUtils.sol");
 
-describe("HttpWrapper", () => {
+contract("HttpWrapper", (accounts) => {
     it("connect to node, get version", async () => {
         let http = new HttpWrapper();
         let res = await new Promise((resolve) => {
@@ -29,17 +30,27 @@ describe("HttpWrapper", () => {
     })
 
     it("should timeout after specified time", async () => {
-        // this test abuses the fact that a local ganache is slow, and should take over 1ms to respond even if it's local
-        // for rsk, we try to estimate gas for a Bridge.getFederationAddress(), which should be slow enough (net_version wasn't slow enough)
-        // for ganache the contract will not exist, but the operation will also be slow enough.
+        // This test abuses the fact that a local ganache is slow,
+        // and should take over 1ms to respond even if it's local.
+        // Since we're also testing for a real RSK node,
+        // we try to create a new contract,
+        // which should be slow enough (net_version wasn't slow enough).
         const http = new HttpWrapper({ timeout: 1 });
         let error = null;
         await assert.isRejected(
-            http.sendPromise(web3.currentProvider.host, { jsonrpc: "2.0", method: "eth_estimateGas", params: [{ to: "0x0000000000000000000000000000000001000006", data: "0x6923fa85" }], id:123 })
-                .catch(err => {
-                    error = err;
-                    return Promise.reject(err);
-                })
+            http.sendPromise(web3.currentProvider.host, {
+                jsonrpc: "2.0",
+                method: "eth_sendTransaction",
+                params: [{
+                    from: accounts[0],
+                    to: "0x0000000000000000000000000000000000000000",
+                    gas: 1000000,
+                    data: TestRecipientUtils.bytecode
+                }], id:123
+            }).catch(err => {
+                error = err;
+                return Promise.reject(err);
+            })
         );
         assert.deepEqual(error, { error: 'timeout of 1ms exceeded' });
     })
