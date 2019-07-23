@@ -174,9 +174,7 @@ contract('RelayClient', function (accounts) {
             }
             orig_send.bind(tbk.httpSend)(url, jsonRequestData, callback)
         }
-        let initialBlockNumber;
         try {
-            initialBlockNumber = await web3.eth.getBlockNumber();
             await tbk.relayTransaction(encoded, options);
             assert.fail()
         }
@@ -189,18 +187,9 @@ contract('RelayClient', function (accounts) {
             // Fix for testing with an RSK node: wait a couple of blocks before proceeding
             // so that eventually the transaction gets retried, mined and the gasless account nonce gets
             // incremented.
-            return (async () => {
-                const isRsk = await testutils.isRsk();
-                if (isRsk) {
-                    for (;;) {
-                        const currentBlockNumber = await web3.eth.getBlockNumber();
-                        if (currentBlockNumber > initialBlockNumber+2) {
-                            break;
-                        }
-                        await testutils.sleep(100);
-                    }
-                }
-            })();
+            if (await testutils.isRsk()) {
+                await testutils.waitBlocks(2);
+            }
         }
     });
 
