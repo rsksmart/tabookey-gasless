@@ -50,12 +50,6 @@ module.exports = {
   		host: "172.17.0.1",
   		port: 4444,
         network_id: "*",
-    },
-    rsklocal: {
-		verbose: process.env.VERBOSE,
-  		host: "127.0.0.1",
-  		port: 4444,
-        network_id: "*",
     }
   },
   mocha: {

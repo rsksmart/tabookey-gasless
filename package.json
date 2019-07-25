@@ -35,7 +35,6 @@
     "test-server": "make test-server",
     "test-js": "run-with-testrpc --port 8544 --gasLimit 8000000 --defaultBalanceEther 1000 --deterministic 'npx truffle --network npmtest test'",
     "test-js-rsk": "make && truffle --network rsk test",
-    "test-js-rsk-local": "truffle --network rsklocal test",
     "webtools-pack": "webpack-cli --config ./webtools.webpack.js",
     "webtools": "webpack-cli --config ./webtools.webpack.js && http-server webtools/ -o",
     "lint": "eslint ./src ./test -f unix",
