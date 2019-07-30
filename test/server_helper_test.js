@@ -17,7 +17,7 @@ const noRandomness= ()=>0
 
 contract('ServerHelper', function (accounts) {
     let minStake = 1.5e18
-    let minDelay = 4
+    let minDelay = 3600 * 24 * 10
     let httpWrapper = new HttpWrapper()
     let serverHelper = new ServerHelper(httpWrapper, {}, { minStake, minDelay, verbose: false, addScoreRandomness : noRandomness})
     let rhub
@@ -39,39 +39,39 @@ contract('ServerHelper', function (accounts) {
         // Note: a real relay server is not registered in this context
         before('registering relays', async function () {
             const isRsk = await testutils.isRsk();
-            let unstakeDelay = 20;
-            if (isRsk) {
-                unstakeDelay = 5;
-                this.timeout(60000);
-            }
             // unstake delay too low
             await register_new_relay(rhub, 2e18, 3600 * 24 * 7, 20, "https://abcd1.com", accounts[7], accounts[0]);
             // unregistered
-            await register_new_relay(rhub, 2e18, unstakeDelay, 2, "https://abcd2.com", accounts[2], accounts[0]);
+            await register_new_relay(rhub, 2e18, 3600 * 24 * 7 * 2, 2, "https://abcd2.com", accounts[2], accounts[0]);
             // stake too low
-            await register_new_relay(rhub, 1e18, unstakeDelay, 20, "https://abcd3.com", accounts[3], accounts[0]);
+            await register_new_relay(rhub, 1e18, 3600 * 24 * 7 * 2, 20, "https://abcd3.com", accounts[3], accounts[0]);
 
             // Added, removed, added again - go figure.
             // 2 x will not ping
-            await register_new_relay(rhub, 2e18, unstakeDelay, 15, "https://abcd4.com", accounts[4], accounts[0]);
-            await rhub.removeRelayByOwner(accounts[4], { from: accounts[0] });
-            if (isRsk) {
-                await testutils.sleep((unstakeDelay + 1)*1000)
-            } else {
-                await increaseTime(unstakeDelay + 1);
-            }
-            await rhub.unstake(accounts[4],{ from: accounts[0] });
-            await register_new_relay(rhub, 2e18, unstakeDelay, 15, "go_resolve_this_address", accounts[4], accounts[0]);
 
-            await register_new_relay(rhub, 2e18, unstakeDelay, 30, "https://abcd4.com", accounts[5], accounts[0]);
+            // Cannot use evm_increaseTime on an RSK node, therefore we don't
+            // add and remove "http://abcd4.com" since later we will not be able
+            // to unstake it and therefore add a new relay with the same owner
+            if (!isRsk) {
+                await register_new_relay(rhub, 2e18, 3600 * 24 * 7 * 2, 15, "https://abcd4.com", accounts[4], accounts[0]);
+                await rhub.removeRelayByOwner(accounts[4], { from: accounts[0] });
+                await increaseTime(3600 * 24 * 7 * 2);
+                await rhub.unstake(accounts[4],{ from: accounts[0] });
+            }
+            await register_new_relay(rhub, 2e18, 3600 * 24 * 7 * 2, 15, "go_resolve_this_address", accounts[4], accounts[0]);
+
+            await register_new_relay(rhub, 2e18, 3600 * 24 * 7 * 2, 30, "https://abcd4.com", accounts[5], accounts[0]);
 
             await rhub.removeRelayByOwner(accounts[2], { from: accounts[0] });
-            if (isRsk) {
-                await testutils.sleep((unstakeDelay + 1)*1000)
-            } else {
-                await increaseTime(unstakeDelay + 1);
+
+            // Same as before for an RSK node, but in this case
+            // we can remove the relay so that it won't show as
+            // registered with the server helper, even though we cannot
+            // unstake (and don't really need to for this test case).
+            if (!isRsk) {
+                await increaseTime(3600 * 24 * 7 * 2);
+                await rhub.unstake(accounts[2],{ from: accounts[0] });
             }
-            await rhub.unstake(accounts[2],{ from: accounts[0] });
 
             serverHelper.setHub(rhub);
         });
@@ -150,7 +150,7 @@ contract('ServerHelper', function (accounts) {
             { relay: '1' },
             { relay: '2' },
             { relay: '3' },
-            { relay: '4', unstakeDelay: 3 }, // dropped out by default, below minDelay
+            { relay: '4', unstakeDelay: 3600 * 24 * 7 }, // dropped out by default, below minDelay
             { relay: '5', stake: 1e18, transactionFee: 1e5 }, // dropped out by default, below minStake
             { relay: '6', stake: 3e18, transactionFee: 1e9 },
             { relay: '7', transactionFee: 1e7 },
@@ -160,7 +160,7 @@ contract('ServerHelper', function (accounts) {
                 transactionFee: 1e10,
                 url: `url-${relay.relay}`,
                 stake: 2e18,
-                unstakeDelay: 100
+                unstakeDelay: 3600 * 24 * 14
             }, relay)
         }));
 

@@ -272,11 +272,11 @@ contract("RelayHub", function (accounts) {
             toBlock: 'latest'
         });
         assert.equal(0, logs_messages.length)
-        let result = await rhub.relayCall(from, to, transacionNoParams, transaction_fee, gas_price, gas_limit, relay_nonce, sig, '0x', {
+        let result = await rhub.relayCall(from, to, transacionNoParams, transaction_fee, gas_price, gas_limit, relay_nonce, sig, '0x', testutils.buildTxParameters({
             from: relayAccount,
             gasPrice: gas_price,
             gasLimit: gas_limit_any_value
-        });
+        }));
         relay_nonce++;
         var log_relayed = result.logs[0];
         var args_relayed = log_relayed.args;
@@ -402,14 +402,13 @@ contract("RelayHub", function (accounts) {
     });
 
     it("should not allow the owner to unstake unregistered relay's stake before time", async function () {
-        this.timeout(20000);
         const isRsk = await testutils.isRsk();
         relAcc = relayAccount;
         if (isRsk) {
             relAcc = await web3.eth.personal.newAccount('password')
             await web3.eth.personal.unlockAccount(relAcc, 'password')
             await web3.eth.sendTransaction({ from: accounts[0], to: relAcc, value: one_ether });
-            let res = await register_new_relay(rhub, one_ether, 6, 120, "hello", relAcc, accounts[0]);
+            let res = await register_new_relay(rhub, one_ether, weekInSec, 120, "hello", relAcc, accounts[0]);
             assert.equal("RelayAdded", res.logs[0].event)
             res = await rhub.removeRelayByOwner(relAcc);
             assert.equal("RelayRemoved", res.logs[0].event);
@@ -437,16 +436,28 @@ contract("RelayHub", function (accounts) {
         }
 
         if (isRsk) {
-            await testutils.sleep(6000)
-            await testutils.waitBlocks(1);
-        } else {
-            await increaseTime(relay.unstakeDelay / 2)
+            // At the moment we cannot use evm_increaseTime on an RSK node, so all
+            // that we can test is that we cannot unstake before time, but
+            // not that we can unstake once the unstakeDelay has passed.
+            // (the minimum - fixed - unstake delay is one week).
+            return;
         }
+
+        await increaseTime(relay.unstakeDelay / 2)
         canUnstake = await rhub.canUnstake.call(relAcc);
         assert.equal(canUnstake, true)
     });
 
     it("should not allow non-owners to unstake", async function () {
+        if (await testutils.isRsk()) {
+            // At the moment we cannot use evm_increaseTime on an RSK node, so all
+            // that we can test is that we cannot unstake before time, but
+            // not that we can unstake once the unstakeDelay has passed.
+            // (the minimum - fixed - unstake delay is one week).
+            this.skip();
+            return;
+        }
+
         let canUnstake = await rhub.canUnstake.call(relAcc);
         assert.equal(true, canUnstake)
 
@@ -459,6 +470,15 @@ contract("RelayHub", function (accounts) {
     });
 
     it("should allow the owner to unstake unregistered relay's stake", async function () {
+        if (await testutils.isRsk()) {
+            // At the moment we cannot use evm_increaseTime on an RSK node, so all
+            // that we can test is that we cannot unstake before time, but
+            // not that we can unstake once the unstakeDelay has passed.
+            // (the minimum - fixed - unstake delay is one week).
+            this.skip();
+            return;
+        }
+
         let canUnstake = await rhub.canUnstake.call(relAcc);
         assert.equal(true, canUnstake);
         await rhub.unstake(relAcc);
@@ -498,14 +518,8 @@ contract("RelayHub", function (accounts) {
     }
 
     it("should penalize relay for signing two distinct transactions with the same nonce", async function () {
-        const isRsk = await testutils.isRsk();
-        let unstakeDelay = dayInSec;
-        if (isRsk) {
-            this.timeout(20000);
-            unstakeDelay = 6;
-        }
         let address = "0x" + ethUtils.privateToAddress(privKey).toString('hex')
-        await register_new_relay_with_privkey(rhub, one_ether, unstakeDelay, 120, "hello", accounts[0], web3, privKey);
+        await register_new_relay_with_privkey(rhub, one_ether, weekInSec, 120, "hello", accounts[0], web3, privKey);
         let stake = await rhub.getRelay(address);
         assert.equal(one_ether, stake[0]);
 
@@ -544,7 +558,7 @@ contract("RelayHub", function (accounts) {
             from: snitching_account,
             gasPrice: gasPricePenalize,
             gasLimit: gas_limit_any_value
-        });
+        }));
 
         assert.equal("Penalized", res.logs[1].event)
         assert.equal(address, res.logs[1].args.relay.toLowerCase())
@@ -563,12 +577,6 @@ contract("RelayHub", function (accounts) {
 
     it("should penalize relay for calling any non-RelayHub address or a method not whitelisted inside hub", async function () {
         // A call to a method that is not whitelisted for the relay to use
-        const isRsk = await testutils.isRsk();
-        let unstakeDelay = weekInSec;
-        if (isRsk) {
-            this.timeout(40000);
-            unstakeDelay = 6;
-        }
         let data1 = rhub.contract.methods.removeRelayByOwner(testutils.zeroAddr).encodeABI()
         let data2 = sr.contract.methods.emitMessage("Hello SampleRecipient!").encodeABI()
         let illegalTransactions = [{
@@ -581,7 +589,7 @@ contract("RelayHub", function (accounts) {
             }]
         await asyncForEach(illegalTransactions, async function (tx) {
             console.log("will try: " + tx.data.slice(0, 10) + " " + tx.destination)
-            await register_new_relay_with_privkey(rhub, one_ether, unstakeDelay, 120, "hello", accounts[0], web3, privKey);
+            await register_new_relay_with_privkey(rhub, one_ether, weekInSec, 120, "hello", accounts[0], web3, privKey);
             let address = "0x" + ethUtils.privateToAddress(privKey).toString('hex')
             let stake = await rhub.getRelay(address);
             assert.equal(one_ether, stake[0]);
@@ -739,8 +747,8 @@ contract("RelayHub", function (accounts) {
             let requested_coeff = new BigNumber((requested_fee + 100) / 100).toPrecision(3, BigNumber.ROUND_HALF_UP)
 
             // Calculate the actual factor. Rounding is expected.
-            let revenue = relay_owner_hub_balance_after.sub(relay_owner_hub_balance_before).toString()
-            let expenses = relay_balance_before.sub(relay_balance_after).toString()
+            let revenue = relay_owner_hub_balance_after.sub(relay_owner_hub_balance_before)
+            let expenses = relay_balance_before.sub(relay_balance_after)
 
             if (requested_fee == 0) {
                 let gas_diff = expenses.sub(revenue).div(gas_price)
@@ -757,7 +765,7 @@ contract("RelayHub", function (accounts) {
             } else {
                 received_coeff = received_coeff.toPrecision(3, BigNumber.ROUND_HALF_UP)
             }
-            assert.equal(requested_coeff, received_coeff)
+            assert.equal(requested_coeff.toString(), received_coeff.toString())
 
             // Check that relay did pay it's gas fee on itslef.
             let expected_balance_after = relay_balance_before.sub(res.receipt.gasUsed * gas_price)
@@ -822,7 +830,7 @@ contract("RelayHub", function (accounts) {
                 from: relAcc,
                 gasPrice: gas_price,
                 gasLimit: gas_limit_any_value
-            });
+            }));
 
             assert.equal("CanRelayFailed", res.logs[0].event);
             assert.equal(AcceptRelayedCallReverted, res.logs[0].args.reason);
@@ -848,14 +856,14 @@ contract("RelayHub", function (accounts) {
             revertPreRelayCall = await sr.revertPreRelayCall();
             assert.equal(revertPreRelayCall, true);
 
-            let digest = await getTransactionHash(from, to, transaction, transaction_fee, gas_price, gas_limit, relay_nonce, rhub.address, relayAccount);
+            let digest = await getTransactionHash(from, to, transaction, transaction_fee, gas_price, gas_limit, relay_nonce, rhub.address, relAcc);
             let sig = await getTransactionSignature(web3, from, digest);
 
-            let res = await rhub.relayCall(from, to, transaction, transaction_fee, gas_price, gas_limit, relay_nonce, sig, '0x', {
-                from: relayAccount,
+            let res = await rhub.relayCall(from, to, transaction, transaction_fee, gas_price, gas_limit, relay_nonce, sig, '0x', testutils.buildTxParameters({
+                from: relAcc,
                 gasPrice: gas_price,
                 gasLimit: gas_limit_any_value
-            });
+            }));
 
             let startBlock = await web3.eth.getBlockNumber()
             // There should not be an event emitted, which means the result of 'relayCall' was indeed reverted
