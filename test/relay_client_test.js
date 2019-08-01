@@ -490,14 +490,15 @@ contract('RelayClient', function (accounts) {
         it("should NOT send relay balance to owner after removed", async function () {
             let response = await request(localhostOne+'/getaddr');
             relayServerAddress = JSON.parse(response.body).RelayServerAddress;
-            beforeOwnerBalance = await web3.eth.getBalance(relayOwner);
+            beforeOwnerBalance = new Big(await web3.eth.getBalance(relayOwner));
             let res = await rhub.removeRelayByOwner(relayServerAddress, {from:relayOwner});
-            let etherSpentByTx = res.receipt.gasUsed * (await web3.eth.getGasPrice());
+            let tx = await web3.eth.getTransaction(res.tx);
+            let etherSpentByTx = new Big(res.receipt.gasUsed).mul(new Big(tx.gasPrice));
             assert.equal("RelayRemoved", res.logs[0].event);
             assert.equal(relayServerAddress.toLowerCase(), res.logs[0].args.relay.toLowerCase());
             await testutils.sleep(2000);
-            let afterOwnerBalance = await web3.eth.getBalance(relayOwner);
-            assert.equal(parseInt(afterOwnerBalance) + etherSpentByTx, parseInt(beforeOwnerBalance))
+            let afterOwnerBalance = new Big(await web3.eth.getBalance(relayOwner));
+            assert.equal(afterOwnerBalance.add(etherSpentByTx).toString(), beforeOwnerBalance.toString())
         });
 
         // it("should send relay balance to owner after removed", async function () {
@@ -521,6 +522,11 @@ contract('RelayClient', function (accounts) {
         //     assert.equal(true,parseInt(afterOwnerBalance)  > parseInt(beforeOwnerBalance))
 
         it("should send relay balance to owner only after unstaked", async function () {
+            // We don't test unstaking on RSK nodes since we can't make use of evm_increaseTime
+            if (await testutils.isRsk()) {
+                this.skip();
+                return;
+            }
             beforeOwnerBalance = await web3.eth.getBalance(relayOwner);
             let unstakeDelay = (await rhub.getRelay(relayServerAddress)).unstakeDelay;
             increaseTime(unstakeDelay);
