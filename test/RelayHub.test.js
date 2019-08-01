@@ -12,7 +12,13 @@ const rlp = require('rlp');
 
 const { expect } = require('chai');
 
-contract('RelayHub', function ([_, relayOwner, relay, otherRelay, sender, other]) {  // eslint-disable-line no-unused-vars
+const testutils = require('./testutils');
+
+// RSK testnet (also regtest) chain ID
+// (see: https://chainid.network/)
+const RSK_CHAIN_ID = 33;
+
+contract.only('RelayHub', function ([_, relayOwner, __relay, otherRelay, sender, other]) {  // eslint-disable-line no-unused-vars
   const RelayCallStatusCodes = {
     OK: new BN('0'),
     RelayedCallFailed: new BN('1'),
@@ -29,8 +35,27 @@ contract('RelayHub', function ([_, relayOwner, relay, otherRelay, sender, other]
     InvalidRecipientStatusCode: new BN('4'),
   };
 
+  const relayCallArgs = {
+    gasPrice: 50,
+    gasLimit: 1000000,
+    nonce: 0,
+    privateKey: '6370fd033278c143179d81c5526140625662b8daa446c22ee2d73db3707e620c', // relay's private key
+  };
+
+  let relay;
   let relayHub;
   let recipient;
+
+  before(async function() {
+      await testutils.init();
+      if (await testutils.isRsk()) {
+          relay = web3.utils.toChecksumAddress(await web3.eth.personal.importRawKey(relayCallArgs.privateKey, 'password'));
+          await web3.eth.personal.unlockAccount(relay, 'password');
+          await web3.eth.sendTransaction({ from: _, to: relay, value: web3.utils.toWei('5', 'ether') });
+      } else {
+          relay = __relay;
+      }
+  })
 
   beforeEach(async function () {
     relayHub = await RelayHub.new();
@@ -155,6 +180,11 @@ contract('RelayHub', function ([_, relayOwner, relay, otherRelay, sender, other]
 
             context('with unstaked relay', function () {
               beforeEach(async function () {
+                // On an RSK node we cannot test unstaking since evm_increaseTime is not yet supported
+                if (await testutils.isRsk()) {
+                    this.skip();
+                    return;
+                }
                 await time.increase(initialUnstakeDelay);
                 await relayHub.unstake(relay, { from: relayOwner });
               });
@@ -308,6 +338,11 @@ contract('RelayHub', function ([_, relayOwner, relay, otherRelay, sender, other]
 
             context('after unstakeTime', function () {
               beforeEach(async function () {
+                // On an RSK node we cannot test unstaking since evm_increaseTime is not yet supported
+                if (await testutils.isRsk()) {
+                  this.skip();
+                  return;
+                }
                 await time.increase(unstakeDelay);
                 expect(await time.latest()).to.be.bignumber.at.least((await relayHub.getRelay(relay)).unstakeTime);
               });
@@ -330,6 +365,11 @@ contract('RelayHub', function ([_, relayOwner, relay, otherRelay, sender, other]
 
               context('with unstaked relay', function () {
                 beforeEach(async function () {
+                  // On an RSK node we cannot test unstaking since evm_increaseTime is not yet supported
+                  if (await testutils.isRsk()) {
+                    this.skip();
+                    return;
+                  }
                   await relayHub.unstake(relay, { from: relayOwner });
                 });
 
@@ -344,7 +384,7 @@ contract('RelayHub', function ([_, relayOwner, relay, otherRelay, sender, other]
     });
   });
 
-  describe('penalizations', function () {
+  describe.only('penalizations', function () {
     const reporter = other;
     const stake = ether('1');
 
@@ -376,13 +416,6 @@ contract('RelayHub', function ([_, relayOwner, relay, otherRelay, sender, other]
         gasPrice: 50,
         gasLimit: 1000000,
         nonce: 0,
-      };
-
-      const relayCallArgs = {
-        gasPrice: 50,
-        gasLimit: 1000000,
-        nonce: 0,
-        privateKey: '6370fd033278c143179d81c5526140625662b8daa446c22ee2d73db3707e620c', // relay's private key
       };
 
       before(function () {
@@ -498,7 +531,7 @@ contract('RelayHub', function ([_, relayOwner, relay, otherRelay, sender, other]
               relayHub.penalizeIllegalTransaction(penalizeTxDataSig.data, penalizeTxDataSig.signature, opts));
           });
 
-          it('does not penalize legal relay transactions', async function () {
+          it.only('does not penalize legal relay transactions', async function () {
             // registerRelay is a legal transaction
 
             const registerTx = await relayHub.registerRelay(10, 'url.com', { from: relay });
@@ -523,9 +556,11 @@ contract('RelayHub', function ([_, relayOwner, relay, otherRelay, sender, other]
             );
 
             await relayHub.depositFor(recipient.address, { from: other, value: ether('1') });
-            const relayCallTx = await relayHub.relayCall(sender, recipient.address, txData, fee, gasPrice, gasLimit, senderNonce, signature, '0x', { from: relay, gasPrice, gasLimit });
-
+            console.log('CP1');
+            const relayCallTx = await relayHub.relayCall(sender, recipient.address, txData, fee, gasPrice, gasLimit, senderNonce, signature, '0x', testutils.buildTxParameters({ from: relay, gasPrice, gasLimit }));
+            console.log('CP2');
             const relayCallTxDataSig = await getDataAndSignatureFromHash(relayCallTx.tx);
+            console.log('CP3');
             await expectRevert(
               relayHub.penalizeIllegalTransaction(relayCallTxDataSig.data, relayCallTxDataSig.signature),
                'Legal relay transaction'
@@ -545,6 +580,8 @@ contract('RelayHub', function ([_, relayOwner, relay, otherRelay, sender, other]
 
         beforeEach(async function () {
           // Relays are not allowed to transfer Ether
+          console.log('FROM', relay);
+          console.log('TO', other);
           const { transactionHash } = await send.ether(relay, other, ether('0.5'));
           ({ data: penalizableTxData, signature: penalizableTxSignature } = await getDataAndSignatureFromHash(transactionHash));
         });
@@ -557,6 +594,10 @@ contract('RelayHub', function ([_, relayOwner, relay, otherRelay, sender, other]
         // Checks that a relay can be penalized, but only once
         function testUniqueRelayPenalization () {
           it('relay can be penalized', async function () {
+            console.log('RELAY', relay);
+            console.log('PEN DATA', penalizableTxData);
+            console.log('PEN SIG', penalizableTxSignature);
+            console.log('DECODED', await relayHub.decodeTx.call(penalizableTxData, penalizableTxSignature))
             await penalize();
           });
 
@@ -601,6 +642,11 @@ contract('RelayHub', function ([_, relayOwner, relay, otherRelay, sender, other]
 
                 context('with unstaked relay', function () {
                   beforeEach(async function () {
+                    // On an RSK node we cannot test unstaking since evm_increaseTime is not yet supported
+                    if (await testutils.isRsk()) {
+                      this.skip();
+                      return;
+                    }
                     await time.increase(unstakeDelay);
                     await relayHub.unstake(relay, { from: relayOwner });
                   });
@@ -643,9 +689,10 @@ contract('RelayHub', function ([_, relayOwner, relay, otherRelay, sender, other]
     }
 
     async function getDataAndSignatureFromHash(txHash) {
+      const isRsk = await testutils.isRsk();
       const rpcTx = await web3.eth.getTransaction(txHash);
 
-      const tx = new Transaction({
+      const txData = {
         nonce: new BN(rpcTx.nonce),
         gasPrice: new BN(rpcTx.gasPrice),
         gasLimit: new BN(rpcTx.gas),
@@ -655,14 +702,46 @@ contract('RelayHub', function ([_, relayOwner, relay, otherRelay, sender, other]
         v: rpcTx.v,
         r: rpcTx.r,
         s: rpcTx.s,
-      });
+      };
+      const tx = new Transaction(txData);
 
-      return getDataAndSignature(tx);
+      console.log('RPCTX', rpcTx);
+      console.log('TX', txData);
+
+      return getDataAndSignature(tx, isRsk);
     }
 
-    function getDataAndSignature(tx) {
-      const data = `0x${rlp.encode([tx.nonce, tx.gasPrice, tx.gasLimit, tx.to, tx.value, tx.data]).toString('hex')}`;
+    function getDataAndSignature(tx, isRsk) {
+      // If the data for a transaction is empty, then RSK returns the data field as '0x00'
+      // from eth_getTransaction rather than as '0x'. So cover that particular case.
+      let txData = tx.data;
+      if (isRsk && txData.length === 1 && txData[0] === 0) {
+        txData = Buffer.from('');
+      }
+
+      // When signing a transaction, RSK RLP encodes a gasPrice of ZERO as '00'
+      // whereas Ganache encodes it as '80'. So cover that particular case.
+      let txGasPrice = tx.gasPrice;
+      if (isRsk && txGasPrice.length === 0) {
+          txGasPrice = Buffer.from('00', 'hex');
+      }
+
+      const toEncode = [tx.nonce, txGasPrice, tx.gasLimit, tx.to, tx.value, txData];
+
+      // RSK uses POST-EIP-155 signatures, so make sure we
+      // account for that in the hash for the signature
+      if (isRsk) {
+        toEncode.push(RSK_CHAIN_ID); // V
+        toEncode.push(0); // R
+        toEncode.push(0); // S
+      }
+
+      console.log('INFO', toEncode);
+      const data = `0x${rlp.encode(toEncode).toString('hex')}`;
       const signature = `0x${tx.r.toString('hex')}${tx.s.toString('hex')}${tx.v.toString('hex')}`
+
+      console.log('DATA', data)
+      console.log('SIGNATURE', signature)
 
       return { data, signature };
     }
