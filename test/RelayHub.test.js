@@ -18,7 +18,7 @@ const testutils = require('./testutils');
 // (see: https://chainid.network/)
 const RSK_CHAIN_ID = 33;
 
-contract.only('RelayHub', function ([_, relayOwner, __relay, otherRelay, sender, other]) {  // eslint-disable-line no-unused-vars
+contract('RelayHub', function ([_, relayOwner, __relay, otherRelay, sender, other]) {  // eslint-disable-line no-unused-vars
   const RelayCallStatusCodes = {
     OK: new BN('0'),
     RelayedCallFailed: new BN('1'),
@@ -384,7 +384,7 @@ contract.only('RelayHub', function ([_, relayOwner, __relay, otherRelay, sender,
     });
   });
 
-  describe.only('penalizations', function () {
+  describe('penalizations', function () {
     const reporter = other;
     const stake = ether('1');
 
@@ -531,7 +531,7 @@ contract.only('RelayHub', function ([_, relayOwner, __relay, otherRelay, sender,
               relayHub.penalizeIllegalTransaction(penalizeTxDataSig.data, penalizeTxDataSig.signature, opts));
           });
 
-          it.only('does not penalize legal relay transactions', async function () {
+          it('does not penalize legal relay transactions', async function () {
             // registerRelay is a legal transaction
 
             const registerTx = await relayHub.registerRelay(10, 'url.com', { from: relay });
@@ -547,6 +547,7 @@ contract.only('RelayHub', function ([_, relayOwner, __relay, otherRelay, sender,
             const fee = new BN('10');
             const gasPrice = new BN('1');
             const gasLimit = new BN('1000000');
+            const gasLimitTx = new BN('2000000');
             const senderNonce = new BN('0');
             const txData = recipient.contract.methods.emitMessage('').encodeABI();
             const signature = await getTransactionSignature(
@@ -556,11 +557,8 @@ contract.only('RelayHub', function ([_, relayOwner, __relay, otherRelay, sender,
             );
 
             await relayHub.depositFor(recipient.address, { from: other, value: ether('1') });
-            console.log('CP1');
-            const relayCallTx = await relayHub.relayCall(sender, recipient.address, txData, fee, gasPrice, gasLimit, senderNonce, signature, '0x', testutils.buildTxParameters({ from: relay, gasPrice, gasLimit }));
-            console.log('CP2');
+            const relayCallTx = await relayHub.relayCall(sender, recipient.address, txData, fee, gasPrice, gasLimit, senderNonce, signature, '0x', testutils.buildTxParameters({ from: relay, gasPrice, gasLimit: gasLimitTx }));
             const relayCallTxDataSig = await getDataAndSignatureFromHash(relayCallTx.tx);
-            console.log('CP3');
             await expectRevert(
               relayHub.penalizeIllegalTransaction(relayCallTxDataSig.data, relayCallTxDataSig.signature),
                'Legal relay transaction'
@@ -580,8 +578,6 @@ contract.only('RelayHub', function ([_, relayOwner, __relay, otherRelay, sender,
 
         beforeEach(async function () {
           // Relays are not allowed to transfer Ether
-          console.log('FROM', relay);
-          console.log('TO', other);
           const { transactionHash } = await send.ether(relay, other, ether('0.5'));
           ({ data: penalizableTxData, signature: penalizableTxSignature } = await getDataAndSignatureFromHash(transactionHash));
         });
@@ -594,10 +590,6 @@ contract.only('RelayHub', function ([_, relayOwner, __relay, otherRelay, sender,
         // Checks that a relay can be penalized, but only once
         function testUniqueRelayPenalization () {
           it('relay can be penalized', async function () {
-            console.log('RELAY', relay);
-            console.log('PEN DATA', penalizableTxData);
-            console.log('PEN SIG', penalizableTxSignature);
-            console.log('DECODED', await relayHub.decodeTx.call(penalizableTxData, penalizableTxSignature))
             await penalize();
           });
 
@@ -705,9 +697,6 @@ contract.only('RelayHub', function ([_, relayOwner, __relay, otherRelay, sender,
       };
       const tx = new Transaction(txData);
 
-      console.log('RPCTX', rpcTx);
-      console.log('TX', txData);
-
       return getDataAndSignature(tx, isRsk);
     }
 
@@ -736,12 +725,8 @@ contract.only('RelayHub', function ([_, relayOwner, __relay, otherRelay, sender,
         toEncode.push(0); // S
       }
 
-      console.log('INFO', toEncode);
       const data = `0x${rlp.encode(toEncode).toString('hex')}`;
       const signature = `0x${tx.r.toString('hex')}${tx.s.toString('hex')}${tx.v.toString('hex')}`
-
-      console.log('DATA', data)
-      console.log('SIGNATURE', signature)
 
       return { data, signature };
     }
@@ -824,6 +809,7 @@ contract.only('RelayHub', function ([_, relayOwner, __relay, otherRelay, sender,
 
       const gasPrice = new BN('10');
       const gasLimit = new BN('1000000');
+      const gasLimitTx = new BN('2000000');
       const senderNonce = new BN('0');
 
       let txData;
@@ -845,7 +831,7 @@ contract.only('RelayHub', function ([_, relayOwner, __relay, otherRelay, sender,
 
         it('preRelayedCall receives values returned in acceptRelayedCall', async function () {
           await recipient.setStoreAcceptData(true);
-          const { tx } = await relayHub.relayCall(sender, recipient.address, txData, fee, gasPrice, gasLimit, senderNonce, signature, '0x', { from: relay, gasPrice, gasLimit });
+          const { tx } = await relayHub.relayCall(sender, recipient.address, txData, fee, gasPrice, gasLimit, senderNonce, signature, '0x', testutils.buildTxParameters({ from: relay, gasPrice, gasLimit: gasLimitTx }));
 
           const maxPossibleCharge = await relayHub.maxPossibleCharge(gasLimit, gasPrice, fee);
 
@@ -856,7 +842,7 @@ contract.only('RelayHub', function ([_, relayOwner, __relay, otherRelay, sender,
 
         it('postRelayedCall receives values returned in acceptRelayedCall', async function () {
           await recipient.setStoreAcceptData(true);
-          const { tx } = await relayHub.relayCall(sender, recipient.address, txData, fee, gasPrice, gasLimit, senderNonce, signature, '0x', { from: relay, gasPrice, gasLimit });
+          const { tx } = await relayHub.relayCall(sender, recipient.address, txData, fee, gasPrice, gasLimit, senderNonce, signature, '0x', testutils.buildTxParameters({ from: relay, gasPrice, gasLimit: gasLimitTx }));
 
           const maxPossibleCharge = await relayHub.maxPossibleCharge(gasLimit, gasPrice, fee);
 
@@ -867,7 +853,7 @@ contract.only('RelayHub', function ([_, relayOwner, __relay, otherRelay, sender,
 
         it('relaying is aborted if the recipient returns an invalid status code', async function () {
           await recipient.setReturnInvalidErrorCode(true);
-          const { logs } = await relayHub.relayCall(sender, recipient.address, txData, fee, gasPrice, gasLimit, senderNonce, signature, '0x', { from: relay, gasPrice, gasLimit });
+          const { logs } = await relayHub.relayCall(sender, recipient.address, txData, fee, gasPrice, gasLimit, senderNonce, signature, '0x', testutils.buildTxParameters({ from: relay, gasPrice, gasLimit: gasLimitTx }));
 
           expectEvent.inLogs(logs, 'CanRelayFailed', { reason: PreconditionCheck.InvalidRecipientStatusCode });
         });
@@ -889,7 +875,7 @@ contract.only('RelayHub', function ([_, relayOwner, __relay, otherRelay, sender,
           });
 
           async function assertRevertWithRecipientBalanceChanged() {
-            const { logs } = await relayHub.relayCall(sender, recipient.address, txData, fee, gasPrice, gasLimit, senderNonce, signature, '0x', { from: relay, gasPrice, gasLimit });
+            const { logs } = await relayHub.relayCall(sender, recipient.address, txData, fee, gasPrice, gasLimit, senderNonce, signature, '0x', testutils.buildTxParameters({ from: relay, gasPrice, gasLimit: gasLimitTx }));
             expectEvent.inLogs(logs, 'TransactionRelayed', { status: RelayCallStatusCodes.RecipientBalanceChanged});
           }
         });
