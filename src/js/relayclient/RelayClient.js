@@ -432,7 +432,7 @@ class RelayClient {
             }
 
             if (canRelayFailed) {
-                setErrorStatus(`canRelay failed: ${canRelayFailed.find(e => e.name == "reason").value}`)
+                setErrorStatus(`canRelay failed: ${canRelayFailed.events.find(e => e.name == "reason").value}`)
             } else if (transactionRelayed) {
                 const status = transactionRelayed.events.find(e => e.name == "status").value
                 if (status != 0) { // 0 signifies success
