@@ -167,7 +167,7 @@ func NewEthClient(EthereumNodeURL string, defaultGasPrice int64) (IClient, error
 	transport.MaxIdleConnsPerHost = 1
 	transport.MaxIdleConns = 1
 	transport.DisableKeepAlives = true
-	
+
 	client.Client, err = Dial(EthereumNodeURL, &transport)
 	return client, err
 }
@@ -355,7 +355,9 @@ func (relay *RelayServer) RegistrationDate() (when int64, err error) {
 		return
 	}
 
-	if (iter.Event == nil && !iter.Next()) ||
+	for ; iter.Next(); {}
+
+	if (iter.Event == nil) ||
 		(bytes.Compare(iter.Event.Relay.Bytes(), relay.Address().Bytes()) != 0) ||
 		(iter.Event.TransactionFee.Cmp(relay.Fee) != 0) ||
 		(iter.Event.Stake.Cmp(relay.StakeAmount) < 0) ||
@@ -364,6 +366,7 @@ func (relay *RelayServer) RegistrationDate() (when int64, err error) {
 		(iter.Event.Url != relay.Url) {
 		return 0, fmt.Errorf("Could not receive RelayAdded() events for our relay")
 	}
+
 	lastRegisteredHeader, err := relay.Client.HeaderByNumber(context.Background(), big.NewInt(int64(iter.Event.Raw.BlockNumber)))
 	if err != nil {
 		log.Println(err)
