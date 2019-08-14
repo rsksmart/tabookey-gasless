@@ -1,7 +1,5 @@
 const path = require('path')
 
-console.log('HOLA', __dirname);
-
 module.exports = {
     entry: './app/app.js',
     mode: 'development',
