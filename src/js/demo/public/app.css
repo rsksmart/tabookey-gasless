@@ -1,0 +1,21 @@
+.item-title {
+    font-weight: bold;
+}
+
+.counter-head th, .counter-row td {
+    border: 1px solid #000;
+    text-align: left;
+    padding: 10px;
+}
+
+.button-bar {
+    margin-top: 10px;
+}
+
+.loading {
+    position: relative;
+}
+
+.loading:before {
+    font-size: 2px;
+}
