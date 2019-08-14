@@ -2,6 +2,10 @@
     font-weight: bold;
 }
 
+.counters-table {
+    margin-top: 10px;
+}
+
 .counter-head th, .counter-row td {
     border: 1px solid #000;
     text-align: left;
@@ -18,4 +22,8 @@
 
 .loading:before {
     font-size: 2px;
+}
+
+.noteblock {
+    margin: 10px;
 }

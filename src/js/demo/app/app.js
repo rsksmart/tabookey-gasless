@@ -2,6 +2,7 @@ const $ = require('jquery');
 const Cookie = require('js-cookie');
 const { Counter } = require('./counter');
 const { Wallet } = require('./wallet');
+const { rpcHost, contractAddress } = require('./config.json');
 
 let counter;
 let wallet;
@@ -12,10 +13,6 @@ const initializeWallet = function() {
         save: (data) => Cookie.set('wallet', data),
     }
     wallet = new Wallet(store);
-
-    if (wallet.getCount() === 0) {
-        account = wallet.newAccount();
-    }
 }
 
 const refresh = (account, row) => async () => {
@@ -31,7 +28,11 @@ const increment = (account, row) => async () => {
     $('.counter-row-count .count', row).css('display', 'none');
     $('.counter-row-count .loading', row).css('display', '');
 
-    await counter.increment();
+    try {
+        await counter.increment();
+    } catch (e) {
+        console.log('ERROR TRYING TO INCREMENT', e);
+    }
     await refresh(account, row)();
 
     $('.counter-row-count .count', row).css('display', '');
@@ -55,8 +56,15 @@ const newAccount = async () => {
     renderAccount(wallet.newAccount());
 };
 
+const resetAccounts = () => {
+    wallet.reset();
+    $('.counters-body').empty();
+};
+
 $(async () => {
-    counter = new Counter('http://localhost:4444', '0x0e19674ebc2c2B6Df3e7a1417c49b50235c61924');
+    $('.rpc-host').text(rpcHost);
+    $('.contract-address').text(contractAddress);
+    counter = new Counter(rpcHost, contractAddress);
     initializeWallet();
 
     for (let i = 0; i < wallet.getCount(); i++) {
@@ -64,4 +72,5 @@ $(async () => {
     }
 
     $('.btn-new-account').click(newAccount);
+    $('.btn-reset-accounts').click(resetAccounts);
 });

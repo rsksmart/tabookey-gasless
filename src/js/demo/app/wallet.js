@@ -54,6 +54,11 @@ Wallet.prototype.getCount = function() {
     return this.accounts.length;
 };
 
+Wallet.prototype.reset = function() {
+    this.accounts = [];
+    this.save();
+}
+
 module.exports = {
     Wallet,
 };
