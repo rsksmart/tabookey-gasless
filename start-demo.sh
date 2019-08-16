@@ -86,7 +86,7 @@ sleep 1
 if [ "$1" != "dev" ]; then
 	npx serve $root/src/js/demo/public -l $WEB_PORT
 else
-	npx webpack-dev-server --context src/js/demo/app/ --config src/js/demo/webpack.config.js --content-base src/js/demo/public/ --host 0.0.0.0 --port $WEB_PORT --watch --progress --watch-poll 1000
+	npx webpack-dev-server --context src/js/demo/ --config src/js/demo/webpack.config.js --content-base src/js/demo/public/ --host 0.0.0.0 --port $WEB_PORT --watch --progress --watch-poll 1000
 fi
 
 exit 0
