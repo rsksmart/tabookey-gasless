@@ -2,34 +2,30 @@
 
 ## Prerequisites
 
-- A local RSK node running in regtest mode
 - Docker
 
 ## Setup
 
-All of the commands below must be run in the root directory.
+All of the commands below must be run in the root directory of the repository.
 
-1. Install the dependencies:
+1. Start a local RSK node:
+
+There's a separate docker image for this purpose. Just run:
 
 ```
-./dock/run.sh yarn
+./rsknode/run.sh
 ```
+
+Wait for the node to be up and running (this can take a while). In the output right before the node starts up, you will see something like:
+
+```
+******************** STARTING NODE *********************
+************* RPC TO BE SET ON IP 172.17.0.2 *************
+```
+
+Copy the IP address, in this case `172.17.0.2`.
 
 2. Configure truffle:
-
-Run:
-
-```
-./dock/run.sh ip a
-```
-
-and look for the IP address of the container (e.g., `172.17.0.2`). Remember it. Then, run:
-
-```
-ip a
-```
-
-and look for the IP address of the host that corresponds to the docker container (usually on the network device `docker0`, e.g., `172.17.0.1`).
 
 Edit the file `truffle.js`. Find the network entry that looks like this:
 
@@ -42,11 +38,17 @@ rsk: {
 }
 ```
 
-Replace the `host` value with the IP address you found on the second `ip a` command. Replace the `port` value with your local node's JSON-RPC port (usually `4444`, so no need to change it in that case).
+Replace the `host` value with the IP address you found on the previous step.
 
-3. Check that truffle can access your RSK node:
+3. Install the dependencies:
 
-Make sure your local RSK node is up and running. Then run:
+```
+./dock/run.sh yarn
+```
+
+4. Check that truffle can access your RSK node:
+
+Run:
 
 ```
 ./dock/run.sh npx truffle console --network rsk
@@ -62,7 +64,7 @@ you should get the current block number as a result.
 
 ## Running the demo
 
-In the root directory, run:
+With the RSK node running (see step 1) and on a separate terminal in the root directory, run:
 
 ```
 ./dock/run.sh ./start-demo.sh
