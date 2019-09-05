@@ -701,13 +701,6 @@ contract('RelayHub', function ([_, relayOwner, __relay, otherRelay, sender, othe
     }
 
     function getDataAndSignature(tx, isRsk) {
-      // If the data for a transaction is empty, then RSK returns the data field as '0x00'
-      // from eth_getTransaction rather than as '0x'. So cover that particular case.
-      let txData = tx.data;
-      if (isRsk && txData.length === 1 && txData[0] === 0) {
-        txData = Buffer.from('');
-      }
-
       // When signing a transaction, RSK RLP encodes a gasPrice of ZERO as '00'
       // whereas Ganache encodes it as '80'. So cover that particular case.
       let txGasPrice = tx.gasPrice;
@@ -715,7 +708,7 @@ contract('RelayHub', function ([_, relayOwner, __relay, otherRelay, sender, othe
           txGasPrice = Buffer.from('00', 'hex');
       }
 
-      const toEncode = [tx.nonce, txGasPrice, tx.gasLimit, tx.to, tx.value, txData];
+      const toEncode = [tx.nonce, txGasPrice, tx.gasLimit, tx.to, tx.value, tx.data];
 
       // RSK uses POST-EIP-155 signatures, so make sure we
       // account for that in the hash for the signature
