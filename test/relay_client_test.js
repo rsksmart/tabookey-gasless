@@ -51,7 +51,6 @@ contract('RelayClient', function (accounts) {
         // let known_deposit = await rhub.balances(sr.address);
         // assert.ok(known_deposit>= deposit, "deposited "+deposit+" but found only "+known_deposit);
         gasLess = await web3.eth.personal.newAccount("password")
-        await web3.eth.personal.unlockAccount(gasLess, "password")
         console.log("gasLess = " + gasLess);
         console.log("starting relay")
 

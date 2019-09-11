@@ -19,7 +19,6 @@ describe("utilities", () => {
             privateKey = privateKeyPrefix + account.privKey.toString('hex');
 
             const address = await web3.eth.personal.importRawKey(privateKey, 'password');
-            await web3.eth.personal.unlockAccount(address, 'password');
 
             sig = await web3.eth.sign(hash, address);
 

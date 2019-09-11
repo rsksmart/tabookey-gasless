@@ -50,7 +50,6 @@ contract('RelayHub', function ([_, relayOwner, __relay, otherRelay, sender, othe
       await testutils.init();
       if (await testutils.isRsk()) {
           relay = web3.utils.toChecksumAddress(await web3.eth.personal.importRawKey(relayCallArgs.privateKey, 'password'));
-          await web3.eth.personal.unlockAccount(relay, 'password');
           await web3.eth.sendTransaction({ from: _, to: relay, value: web3.utils.toWei('5', 'ether') });
       } else {
           relay = __relay;
@@ -633,12 +632,15 @@ contract('RelayHub', function ([_, relayOwner, __relay, otherRelay, sender, othe
                 testUniqueRelayPenalization();
 
                 context('with unstaked relay', function () {
-                  beforeEach(async function () {
+                  before(async function() {
                     // On an RSK node we cannot test unstaking since evm_increaseTime is not yet supported
                     if (await testutils.isRsk()) {
                       this.skip();
                       return;
                     }
+                  });
+
+                  beforeEach(async function () {
                     await time.increase(unstakeDelay);
                     await relayHub.unstake(relay, { from: relayOwner });
                   });

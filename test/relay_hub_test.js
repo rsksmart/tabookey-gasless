@@ -406,7 +406,6 @@ contract("RelayHub", function (accounts) {
         relAcc = relayAccount;
         if (isRsk) {
             relAcc = await web3.eth.personal.newAccount('password')
-            await web3.eth.personal.unlockAccount(relAcc, 'password')
             await web3.eth.sendTransaction({ from: accounts[0], to: relAcc, value: one_ether });
             let res = await register_new_relay(rhub, one_ether, weekInSec, 120, "hello", relAcc, accounts[0]);
             assert.equal("RelayAdded", res.logs[0].event)
@@ -699,7 +698,6 @@ contract("RelayHub", function (accounts) {
             if (requested_fee === 0) {
                 if (await testutils.isRsk()) {
                     relAcc = await web3.eth.personal.newAccount('password')
-                    await web3.eth.personal.unlockAccount(relAcc, 'password')
                     await web3.eth.sendTransaction({ from: accounts[0], to: relAcc, value: one_ether });
                 } else {
                     relAcc = relayAccount;

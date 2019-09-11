@@ -32,7 +32,7 @@ const assertNotEnoughFunds = function(ex, isRsk) {
 
 options.forEach(params => {
 
-    contract(params.title + 'Flow', async (acc) => {
+    contract.only(params.title + 'Flow', async (acc) => {
         let from
         let sr
         let rhub
