@@ -43,7 +43,9 @@ Counter.prototype.getCount = async function() {
 Counter.prototype.increment = async function() {
     this.ensureAccount();
     await this.ensureContractInstance();
-    return await this.contractInstance.increment({ from: this.account.address });
+    // gasPrice in null will make the RelayClient choose a gasPrice dependant on
+    // the current network gas price
+    return await this.contractInstance.increment({ from: this.account.address, gasPrice: null });
 };
 
 module.exports = {
