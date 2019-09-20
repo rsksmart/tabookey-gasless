@@ -31,6 +31,7 @@ $(ETHFILE): Makefile
 	@if [ ! -d ${ETHDIR} ]; then \
 	  git clone ${ETHREPO} --depth=1 --branch=${ETHVERSION} ${ETHDIR} ;\
 	  go get -v -d ./...;\
+	  cp ./src/compat/ethereum.go-ethereum.core.types.gen_receipt_json.go~ ${ETHDIR}/core/types/gen_receipt_json.go ;\
 	fi
 	touch $(ETHFILE)
 
