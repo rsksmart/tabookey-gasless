@@ -33,6 +33,7 @@ $(ETHFILE): Makefile
 	  go get -v -d ./...;\
 	  cp ./src/compat/ethereum.go-ethereum.common.hexutil.json.go~ ${ETHDIR}/common/hexutil/json.go ;\
 	  cp ./src/compat/ethereum.go-ethereum.ethclient.rsk.go~ ${ETHDIR}/ethclient/rsk.go ;\
+	  cp ./src/compat/ethereum.go-ethereum.core.types.gen_receipt_json.go~ ${ETHDIR}/core/types/gen_receipt_json.go ;\
 	fi
 	touch $(ETHFILE)
 
