@@ -14,6 +14,7 @@ RUN	add-apt-repository ppa:gophers/archive &&\
 	apt-get install -y ethereum  && \
 	apt-get install -y netcat && \
 	apt-get install --no-install-recommends yarn && \
+	apt-get install -y sudo iputils-ping telnet && \
 	rm -rf /var/lib/apt/lists/*
 
 ENV PS1 "\e[31min-docker\e[0m \W \$ "
