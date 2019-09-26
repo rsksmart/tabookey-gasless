@@ -37,6 +37,8 @@
     "test-js-rsk": "make && truffle --network rsk test",
     "webtools-pack": "webpack-cli --config ./webtools.webpack.js",
     "webtools": "webpack-cli --config ./webtools.webpack.js && http-server webtools/ -o",
+    "build-demo": "webpack-cli --config ./src/js/demo/webpack.config.js",
+    "build-demo-prod": "webpack-cli --config ./src/js/demo/webpack.config.js --mode production",
     "lint": "eslint ./src ./test -f unix",
     "gsn-dock-relay": "./scripts/gsn-dock-relay",
     "gsn-dock-relay-ganache": "./scripts/gsn-dock-relay-ganache",
