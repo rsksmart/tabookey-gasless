@@ -69,7 +69,7 @@ Write down that address for future use.
 
 ## Relay deployment
 
-1. Build the Relay. Run:
+### Build the Relay. Run:
 
 ```
 ./dock/run.sh make -C server
@@ -77,7 +77,7 @@ Write down that address for future use.
 
 Repeat the following steps for each relay:
 
-2. Copy binary and scripts to your server
+### Copy binary and scripts to your server
 
 Copy the `build/dock-builD/server/bin/RelayHttpServer` to your server. If for example your server is at the IP `WW.XX.YY.ZZ`, issue:
 
@@ -87,7 +87,7 @@ scp build/dock-builD/server/bin/RelayHttpServer WW.XX.YY.ZZ:
 
 In the same fashion, copy the `deploy/start-relay.sh` and `deploy/stop-relay.sh` files into your server. Then, within your server, move the previously copied files into a directory within your home, say `relay`.
 
-3. Copy, edit script (local ip, node ip, RelayHub address), add execution permission
+### Copy, edit script (local ip, node ip, RelayHub address), add execution permission
 
 Now, within your server, edit the `relay/start-relay.sh`. You'll notice that the first section has some comments on replaceable values:
 
@@ -107,7 +107,7 @@ Replace those values with the actual ones. You should only need to change `local
 chmod ug+x relay/*.sh
 ```
 
-4. Start relay, write down address, backup key
+### Start relay, write down address, backup key
 
 Start the relay. Within your server home, issue:
 
@@ -142,7 +142,7 @@ If you wish to keep monitoring the server's output, issue:
 tail -f relay/relay.log
 ```
 
-5. Stake relay
+### Stake relay
 
 From within a truffle console, with an account that
 has funds, say `theAccount`, issue:
@@ -172,7 +172,7 @@ replacing `THE_SERVER_ADDRESS` with the address you wrote down when deploying th
 
 where the owner should be the address you sent the `rh.stake` transaction from (`theAccount` in the example).
 
-6. Fund relay
+### Fund relay
 
 The last step before the relay is fully operationable is to fund it so that it can pay for transactions. Within the same truffle console, using a funded account (in this case `theAccount`, but it needn't be the same), issue:
 
@@ -190,3 +190,115 @@ replacing `THE_SERVER_ADDRESS` with the server address (the same as in the previ
 ```
 
 where the balance should be the amount you sent (1 ether or 1000000000000000000 weis in this case).
+
+## Demo deployment
+
+### Deploy and fund counter contract
+
+Within the truffle console and with an account that has funds (we will reuse `theAccount` here, but feel free to use any account), issue:
+
+```
+truffle(rsk)> counter = await Counter.new('THE_RELAY_HUB_ADDRESS', {from: theAccount})
+```
+
+Replacing `THE_RELAY_HUB_ADDRESS` with your actual deployed RelayHub address. Once the transaction is mined you should be able to find out the deployed contract's address:
+
+```
+truffle(rsk)> counter.address
+'0xFd24285037507F0dC7f98833C010B3Ea53181526'
+```
+
+Write down that address for future use. Next we're going to fund the contract so that it can pay transaction fees to relayers. Issue:
+
+```
+truffle(rsk)> counter.deposit({from: theAccount, value: web3.utils.toWei('0.5','ether')})
+```
+
+Replacing `('1', 'ether')` with the amount you wish to deposit (a maximum deposit of 2 ether applies).
+
+### Configure and build app
+
+Copy the file `src/js/demo/app/config.json.sample` to `src/js/demo/app/config.json`. Edit it. Replace the value for `rpcHost` with your actual RSK node's JSON-RPC endpoint. Replace the value for `contractAddress` with the address of the `counter` contract you just deployed. Save the file. Then, issue:
+
+```
+./dock/run.sh npm run build-demo-prod
+```
+
+Wait for it to finish.
+
+### Copy to destination
+
+Generate an archive with the built app:
+
+```
+tar zcvf app.tar.gz -C src/js/demo/public .
+```
+
+Copy the generated `app.tar.gz` file to your server. If for example your server is at the IP `WW.XX.YY.ZZ`, issue:
+
+```
+scp app.tar.gz WW.XX.YY.ZZ:
+```
+
+Then on your server, create a `www` directory. Move `app.tar.gz` in there. Then, from within `www`, issue:
+
+```
+tar xzvf app.tar.gz
+```
+
+You should now have a `public` directory within `www`, containing your app. Rename that directory to `demo`:
+
+```
+mv www/public www/demo
+```
+
+Make sure `www/demo` has the right permissions:
+
+```
+chmod 755 www/demo
+```
+
+### Serve app
+
+Using your favorite web server, serve the directory `www/demo`. We are going to use NGINX here. Issue:
+
+```
+sudo apt install nginx
+```
+
+Then:
+
+```
+sudo systemctl stop nginx
+```
+
+Then create and edit the file `/etc/nginx/sites-available/demo` (you will need to use `sudo`). Paste the following contents:
+
+```
+server {
+        listen 80 default_server;
+        listen [::]:80 default_server;
+
+        root PATH_TO_YOUR_HOME/www/demo
+
+        index index.html;
+
+        server_name _;
+
+        location / {
+                # First attempt to serve request as file, then
+                # as directory, then fall back to displaying a 404.
+                try_files $uri $uri/ =404;
+        }
+}
+```
+
+Replace `80` with the port you wish your web server to be listening on, and `PATH_TO_YOUR_HOME` with the actual path to your home directory, on which `www` lies on.
+
+Finally:
+
+```
+sudo systemctl nginx start
+```
+
+Using your favorite browser, point your address to your server. The demo app should be up and running.
