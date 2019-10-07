@@ -35,7 +35,14 @@ contract('RelayClient', function (accounts) {
 
     before(async function () {
         const gasPricePercent = 20
-        gasPrice = ( await web3.eth.getGasPrice() ) * (100  + gasPricePercent)/100
+        gasPrice = await web3.eth.getGasPrice();
+        // Sometimes, xDai or RSK network returns '0'
+        // RelayClient implements this special case, so replicate it here so
+        // that we get consistent results if testing against e.g. an RSK node
+        if (!gasPrice || gasPrice == 0) {
+            gasPrice = 1e9;
+        }
+        gasPrice *= (100+gasPricePercent)/100;
 
         rhub = await RelayHub.deployed()
         sr = await SampleRecipient.deployed()
@@ -44,6 +51,7 @@ contract('RelayClient', function (accounts) {
         // let known_deposit = await rhub.balances(sr.address);
         // assert.ok(known_deposit>= deposit, "deposited "+deposit+" but found only "+known_deposit);
         gasLess = await web3.eth.personal.newAccount("password")
+        await web3.eth.personal.unlockAccount(gasLess, "password")
         console.log("gasLess = " + gasLess);
         console.log("starting relay")
 
@@ -175,6 +183,13 @@ contract('RelayClient', function (accounts) {
                 throw error
             }
             assert.equal(true, error.otherErrors[0].includes("Relay used a tx nonce higher than requested"))
+        } finally {
+            // Fix for testing with an RSK node: wait a couple of blocks before proceeding
+            // so that eventually the transaction gets retried, mined and the gasless account nonce gets
+            // incremented.
+            if (await testutils.isRsk()) {
+                await testutils.waitBlocks(2);
+            }
         }
     });
 
@@ -468,25 +483,50 @@ contract('RelayClient', function (accounts) {
         }
     })
 
-
     describe("relay balance management", async function () {
         let relayServerAddress;
         let beforeOwnerBalance;
+
         it("should NOT send relay balance to owner after removed", async function () {
             let response = await request(localhostOne+'/getaddr');
             relayServerAddress = JSON.parse(response.body).RelayServerAddress;
-            beforeOwnerBalance = await web3.eth.getBalance(relayOwner);
+            beforeOwnerBalance = new Big(await web3.eth.getBalance(relayOwner));
             let res = await rhub.removeRelayByOwner(relayServerAddress, {from:relayOwner});
-            let etherSpentByTx = res.receipt.gasUsed * (await web3.eth.getGasPrice());
+            let tx = await web3.eth.getTransaction(res.tx);
+            let etherSpentByTx = new Big(res.receipt.gasUsed).mul(new Big(tx.gasPrice));
             assert.equal("RelayRemoved", res.logs[0].event);
             assert.equal(relayServerAddress.toLowerCase(), res.logs[0].args.relay.toLowerCase());
             await testutils.sleep(2000);
-            let afterOwnerBalance = await web3.eth.getBalance(relayOwner);
-            assert.equal(parseInt(afterOwnerBalance) + etherSpentByTx, parseInt(beforeOwnerBalance))
-
+            let afterOwnerBalance = new Big(await web3.eth.getBalance(relayOwner));
+            assert.equal(afterOwnerBalance.add(etherSpentByTx).toString(), beforeOwnerBalance.toString())
         });
 
+        // it("should send relay balance to owner after removed", async function () {
+        //
+        //     let response = await request(localhostOne+'/getaddr');
+        //     let relayServerAddress = JSON.parse(response.body).RelayServerAddress;
+        //     let beforeOwnerBalance = await web3.eth.getBalance(relayOwner);
+        //     let res = await rhub.removeRelayByOwner(relayServerAddress, {from:relayOwner});
+        //     assert.equal("RelayRemoved", res.logs[0].event);
+        //     assert.equal(relayServerAddress.toLowerCase(), res.logs[0].args.relay.toLowerCase());
+        //
+        //     let i = 0;
+        //     let relayBalance = await web3.eth.getBalance(relayServerAddress);
+        //     while (relayBalance != 0 && i < 20) {
+        //         await testutils.sleep(200);
+        //         relayBalance = await web3.eth.getBalance(relayServerAddress);
+        //         i++
+        //     }
+        //     assert.equal(0,relayBalance)
+        //     let afterOwnerBalance = await web3.eth.getBalance(relayOwner);
+        //     assert.equal(true,parseInt(afterOwnerBalance)  > parseInt(beforeOwnerBalance))
+
         it("should send relay balance to owner only after unstaked", async function () {
+            // We don't test unstaking on RSK nodes since we can't make use of evm_increaseTime
+            if (await testutils.isRsk()) {
+                this.skip();
+                return;
+            }
             beforeOwnerBalance = await web3.eth.getBalance(relayOwner);
             let unstakeDelay = (await rhub.getRelay(relayServerAddress)).unstakeDelay;
             increaseTime(unstakeDelay);
@@ -504,7 +544,6 @@ contract('RelayClient', function (accounts) {
             assert.equal(0,relayBalance)
             let afterOwnerBalance = await web3.eth.getBalance(relayOwner);
             assert.equal(true,parseInt(afterOwnerBalance)  > parseInt(beforeOwnerBalance))
-
         });
     });
 

@@ -28,7 +28,57 @@ function bytesToHex_noPrefix(bytes) {
     return hex
 }
 
+const WELL_FORMED_SIGNATURE_LENGTH = 2+(32+32+1)*2; // 0x prefix + 32 bytes r + 32 bytes s + 1 byte v
+const MINIMUM_SIGNATURE_LENGTH = 2+(31+31+1)*2; // 0x prefix + 31 bytes r + 31 bytes s + 1 byte v
+const SINGLE_COMPONENT_MALFORMED_SIGNATURE_LENGTH = 2+(32+31+1)*2; // 0x prefix + 32 bytes r/s + 31 bytes s/r + 1 byte v
+
+function sanitizeJsonRpcSignature(signature, hash, account, web3cli) {
+    if (signature.length === WELL_FORMED_SIGNATURE_LENGTH) {
+        return signature;
+    }
+
+    if (signature.length < MINIMUM_SIGNATURE_LENGTH) {
+        throw new Error("Cannot sanitize signature '" + signature +"': less than minimum length");
+    }
+
+    let sanitized;
+
+    if (signature.length === MINIMUM_SIGNATURE_LENGTH) {
+        sanitized = "0x" + "00" + signature.substr(2, 62) + "00" + signature.substr(64, 64);
+        tryRecover(sanitized, signature, hash, account, web3cli);
+        return sanitized;
+    }
+
+    if (signature.length === SINGLE_COMPONENT_MALFORMED_SIGNATURE_LENGTH) {
+        // 31 bytes belong to R
+        try {
+            sanitized = "0x" + "00" + signature.substr(2, 62) + signature.substr(64, 66);
+            tryRecover(sanitized, signature, hash, account, web3cli);
+            return sanitized;
+        } catch (e) {
+            // 31 bytes belong to S
+            sanitized = "0x" + signature.substr(2, 64) + "00" + signature.substr(66, 64);
+            tryRecover(sanitized, signature, hash, account, web3cli);
+            return sanitized;
+        }
+    }
+
+    throw new Error("Could not sanitize signature '" + signature + "': unexpected error");
+}
+
+function tryRecover(signature, originalSignature, hash, account, web3cli) {
+    try {
+        const recovered = web3cli.eth.accounts.recover(hash, signature);
+        if (recovered.toLowerCase() !== account.toLowerCase()) {
+            throw new Error("Could not sanitize signature '" + originalSignature + "': inconsistent recovery");
+        }
+    } catch (e) {
+        throw new Error("Could not sanitize signature '" + originalSignature + "': " + e);
+    }
+}
+
 module.exports = {
+    sanitizeJsonRpcSignature,
     register_new_relay: async function (relayHub, stake, delay, txFee, url, account) {
         await relayHub.stake(account, delay, {from: account, value: stake})
         return await relayHub.registerRelay(txFee, url, {from: account})
@@ -77,7 +127,8 @@ module.exports = {
             })
         }
 
-        let signature = ethUtils.fromRpcSig(sig_);
+        let signature = sanitizeJsonRpcSignature(sig_, hash, account, web3);
+        signature = ethUtils.fromRpcSig(signature);
         let sig = web3Utils.bytesToHex(signature.r) + removeHexPrefix(web3Utils.bytesToHex(signature.s)) + removeHexPrefix(web3Utils.toHex(signature.v));
 
         return sig;

@@ -18,10 +18,21 @@ let options = [
     {title: "Relayed-", relay: 1}
 ]
 
+const assertNotEnoughFunds = function(ex, isRsk) {
+    if (isRsk) {
+        assert.ok(
+            ex.toString().indexOf("the sender account doesn't exist") > 0 ||
+            ex.toString().indexOf("insufficient funds") > 0,
+            "Expected Error with either 'insufficient funds' or 'the sender account doesn't exist'. got: " + ex
+        )
+    } else {
+        assert.ok(ex.toString().indexOf("funds") > 0, "Expected Error with 'funds'. got: " + ex)
+    }
+}
+
 options.forEach(params => {
 
     contract(params.title + 'Flow', async (acc) => {
-
         let from
         let sr
         let rhub
@@ -30,13 +41,15 @@ options.forEach(params => {
         let relayproc
         let gasPrice
         let relay_client_config
+        let isRsk
 
         before(async () => {
+            isRsk = await testutils.isRsk();
             const gasPricePercent = 20
             gasPrice = ( await web3.eth.getGasPrice() ) * (100  + gasPricePercent)/100
 
             gasless = await web3.eth.personal.newAccount("password")
-            web3.eth.personal.unlockAccount(gasless, "password")
+            await web3.eth.personal.unlockAccount(gasless, "password")
 
             if (params.relay) {
                 // rhub = await RelayHub.deployed()
@@ -67,7 +80,7 @@ options.forEach(params => {
 
         if (params.relay) {
             it(params.title + "enable relay", async function () {
-                rhub.depositFor(sr.address, {value: 1e18})
+                await rhub.depositFor(sr.address, {value: 1e18})
 
                 relay_client_config = {
                     txfee: 60,
@@ -84,20 +97,18 @@ options.forEach(params => {
                 // however, in Truffle, all contracts are built BEFORE the test have started, and COPIED the web3,
                 // so changing the global one is not enough...
                 SampleRecipient.web3.setProvider(relayProvider)
-
             })
         }
 
         it(params.title + "send normal transaction", async () => {
-
             let logIndex = params.relay ? 1:0
 
-            console.log("running emitMessage (should succeed")
+            console.log("running emitMessage (should succeed)")
             let res = await sr.emitMessage("hello", {from: from})
             assert.equal("hello", res.logs[0+logIndex].args.message)
         })
 
-        it(params.title + "send gasless tranasaction", async () => {
+        it(params.title + "send gasless transaction", async () => {
 
             let logIndex = params.relay ? 1:0
 
@@ -115,7 +126,7 @@ options.forEach(params => {
             if (params.relay) {
                 assert.ok(ex == null, "should succeed sending gasless transaction through relay. got: "+ex)
             } else {
-                assert.ok(ex.toString().indexOf("funds") > 0, "Expected Error with 'funds'. got: " + ex)
+                assertNotEnoughFunds(ex, isRsk);
             }
 
         })

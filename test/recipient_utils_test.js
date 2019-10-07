@@ -4,7 +4,9 @@ const TestRecipientUtils=artifacts.require( 'TestRecipientUtils.sol' )
 
 describe('GsnUtils', async() => {
 	var testForUtils;
-	before(async ()=> {
+
+	before(async function() {
+		this.timeout(10000);
 		testForUtils = await TestRecipientUtils.new()
 	})
 

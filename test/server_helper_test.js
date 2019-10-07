@@ -23,7 +23,7 @@ contract('ServerHelper', function (accounts) {
     let rhub
     let relayproc
 
-    before(async function(){
+    before(async function() {
         rhub = await RelayHub.deployed()
         relayproc = await testutils.startRelay(rhub, {
             verbose: process.env.relaylog,
@@ -38,6 +38,7 @@ contract('ServerHelper', function (accounts) {
     describe('with running relay hub', function () {
         // Note: a real relay server is not registered in this context
         before('registering relays', async function () {
+            const isRsk = await testutils.isRsk();
             // unstake delay too low
             await register_new_relay(rhub, 2e18, 3600 * 24 * 7, 20, "https://abcd1.com", accounts[7], accounts[0]);
             // unregistered
@@ -47,17 +48,30 @@ contract('ServerHelper', function (accounts) {
 
             // Added, removed, added again - go figure.
             // 2 x will not ping
-            await register_new_relay(rhub, 2e18, 3600 * 24 * 7 * 2, 15, "https://abcd4.com", accounts[4], accounts[0]);
-            await rhub.removeRelayByOwner(accounts[4], { from: accounts[0] });
-            await increaseTime(3600 * 24 * 7 *2);
-            await rhub.unstake(accounts[4],{ from: accounts[0] });
+
+            // Cannot use evm_increaseTime on an RSK node, therefore we don't
+            // add and remove "http://abcd4.com" since later we will not be able
+            // to unstake it and therefore add a new relay with the same owner
+            if (!isRsk) {
+                await register_new_relay(rhub, 2e18, 3600 * 24 * 7 * 2, 15, "https://abcd4.com", accounts[4], accounts[0]);
+                await rhub.removeRelayByOwner(accounts[4], { from: accounts[0] });
+                await increaseTime(3600 * 24 * 7 * 2);
+                await rhub.unstake(accounts[4],{ from: accounts[0] });
+            }
             await register_new_relay(rhub, 2e18, 3600 * 24 * 7 * 2, 15, "go_resolve_this_address", accounts[4], accounts[0]);
 
             await register_new_relay(rhub, 2e18, 3600 * 24 * 7 * 2, 30, "https://abcd4.com", accounts[5], accounts[0]);
 
             await rhub.removeRelayByOwner(accounts[2], { from: accounts[0] });
-            await increaseTime(3600 * 24 * 7 *2);
-            await rhub.unstake(accounts[2],{ from: accounts[0] });
+
+            // Same as before for an RSK node, but in this case
+            // we can remove the relay so that it won't show as
+            // registered with the server helper, even though we cannot
+            // unstake (and don't really need to for this test case).
+            if (!isRsk) {
+                await increaseTime(3600 * 24 * 7 * 2);
+                await rhub.unstake(accounts[2],{ from: accounts[0] });
+            }
 
             serverHelper.setHub(rhub);
         });

@@ -24,6 +24,12 @@ const DEFAULT_HTTP_TIMEOUT = 10000;
 //default gas price (unless client specifies one): the web3.eth.gasPrice*(100+GASPRICE_PERCENT)/100
 const GASPRICE_PERCENT = 20;
 
+const EXPECTED_BROADCAST_ERRORS = [
+    'the tx doesn\'t have the correct nonce',
+    'known transaction',
+    'pending transaction with same hash already exists',
+];
+
 class RelayClient {
     /**
      * create a RelayClient library object, to force contracts to go through a relay.
@@ -244,7 +250,7 @@ class RelayClient {
             // see the EIP for description of the attack
 
             //don't display error for the known-good cases
-            if (!("" + error).match(/the tx doesn't have the correct nonce|known transaction/))
+            if (!("" + error).match(new RegExp(EXPECTED_BROADCAST_ERRORS.join('|'))))
                 console.log("broadcastTx: ", error || result);
 
             if (error) {
@@ -253,6 +259,7 @@ class RelayClient {
                 // the only point is that different node versions return different error strings:
                 // ganache:  "the tx doesn't have the correct nonce"
                 // ropsten: "known transaction"
+                // rsk: "pending transaction with same hash already exists"
             } else {
                 if (result == tx_hash) {
                     //transaction already on chain
@@ -299,7 +306,7 @@ class RelayClient {
         let pct = (this.config.gaspriceFactorPercent || GASPRICE_PERCENT);
 
         let network_gas_price = await this.web3.eth.getGasPrice();
-        // Sometimes, xDai netwiork returns '0'
+        // Sometimes, xDai or RSK network returns '0'
         if (!network_gas_price || network_gas_price == 0) {
             network_gas_price = 1e9;
         }
@@ -425,7 +432,7 @@ class RelayClient {
             }
 
             if (canRelayFailed) {
-                setErrorStatus(`canRelay failed: ${canRelayFailed.find(e => e.name == "reason").value}`)
+                setErrorStatus(`canRelay failed: ${canRelayFailed.events.find(e => e.name == "reason").value}`)
             } else if (transactionRelayed) {
                 const status = transactionRelayed.events.find(e => e.name == "status").value
                 if (status != 0) { // 0 signifies success
