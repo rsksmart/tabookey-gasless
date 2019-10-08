@@ -15,10 +15,6 @@ Examples
 
 Its very simple to adapt an existing contract and apps to use the Relays
 
-## About this fork
-
-TODO
-
 ## How it works?
 
 For a full techincal description, see our [EIP draft](https://github.com/ethereum/EIPs/blob/master/EIPS/eip-1613.md)
@@ -81,8 +77,7 @@ The above is a docker wrapper, containing build prerequisites (`go`, `abigen`, `
 
 ### Running the demo webapp + dApp
 
-Provided is a very simple "Counter" contract along with a sample web app that uses GSN to send gasless transactions.
-See [demo-setup.md](demo-setup.md) for details on how to setup and run it.
+Provided is a very simple "Counter" contract along with a sample web app that uses a test relay network to send gasless transactions. See [demo-setup.md](demo-setup.md) for details.
 
 ### Components:
 
@@ -160,3 +155,33 @@ contract MyContract is RelayRecipient {
 ```
 
 In the [samples/contracts](samples/contracts) folder there are several sample RelayRecipient implementations for general use-cases.
+
+## About this fork
+
+This is a fork of [the original project repository](https://github.com/tabookey/tabookey-gasless). It's purpose is to provide a version of Tabookey's Relay Network that can run both on top of the RSK network as well as of Ethereum. In order to achieve this, some minor changes were been implemented both on the `RelayServer` and the `RelayClient` components given certain incompatibilities between the RSK and Ethereum nodes.
+
+### Change list
+
+The following changes were implemented in order to get the Relay Network working on top of the RSK network.
+
+On the `RelayServer`:
+
+- Forcing usage of a single outstanding request for JSON-RPC requests
+- Patched `go-ethereum` to allow for hexadecimal numbers with leading zeroes on JSON-RPC responses
+- Patched `go-ethereum`'s `GetPendingCodeAt` to use `latest` (`pending` hasn't yet been implemented on RSK's latest version)
+- Removed the `logsBloom` field from transaction receipts
+
+On the `RelayClient`:
+
+- Added compatibility with RSK's pending transaction error message
+
+Also, js tests were modified in order to allow for them to also run on a regtest RSK node (this was part of the compatibilization process). To run such tests, just configure the truffle network with the name `rsk` to point to a local regtest RSK node and execute:
+
+```
+./dock/run.sh npm run test-js-rsk
+```
+
+Last but not leasts, some bugs were fixed:
+
+- On the `RelayServer`: only look at the last relayer registration event
+- On the `RelayClient`: upon relaying failure, fix the error status setting
