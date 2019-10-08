@@ -7,6 +7,8 @@ const request = promisify(require("request"))
 
 const irelayhub = require( '../src/js/relayclient/IRelayHub')
 
+const testutils = require('../test/testutils');
+
 
 async function fundrelay(hubaddr, relayaddr, fromaddr, fund, stake, unstakeDelay, web3) {
     let rhub = new web3.eth.Contract(irelayhub, hubaddr)
@@ -16,7 +18,13 @@ async function fundrelay(hubaddr, relayaddr, fromaddr, fund, stake, unstakeDelay
         console.log( "already has a stake of "+(curstake/1e18)+" eth. NOT adding more")
     } else {
         console.log( "staking ",stake)
-        console.log( await rhub.methods.stake(relayaddr, unstakeDelay).send({value: stake, from:fromaddr, gas:8000000}))
+
+        let gasLimit = 8000000;
+        if (await testutils.isRsk(web3)) {
+            gasLimit = 6000000;
+        }
+
+        console.log( await rhub.methods.stake(relayaddr, unstakeDelay).send(testutils.buildTxParameters({value: stake, from:fromaddr, gas: gasLimit})))
     }
 
     let balance = await web3.eth.getBalance(relayaddr)

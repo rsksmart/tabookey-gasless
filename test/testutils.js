@@ -12,7 +12,12 @@ const RSK_VERSION_PREFIX = 'RskJ/'
 
 let _isRsk = null;
 
-const isRsk = async function() {
+const isRsk = async function(_w3) {
+    // Hack to use from outside the tests
+    if (_w3 != null) {
+        web3 = _w3;
+    }
+
     if (_isRsk == null) {
         const nodeInfo = await web3.eth.getNodeInfo();
         _isRsk = nodeInfo.startsWith(RSK_VERSION_PREFIX);
