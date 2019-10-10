@@ -5,10 +5,9 @@ if [ "$1" == "help" ]; then
 echo Usage:
 echo "  $0 test - run all tests, and exit"
 echo "  $0      - (no args) start HttpRelayServer, and wait"
-echo "  $0 web  - start HttpRelayServer and sample MetaCoin web app (downloaded into \"webpack-box\" subfolder"
 exit 1
 
-else 
+else
 	echo "use '$0 help' for usage."
 fi
 
@@ -30,7 +29,7 @@ export GOPATH=$root/server/:$root/build/server
 echo "Using GOPATH=" $GOPATH
 # cd $gobin
 ./scripts/extract_abi.js
-make -C server 
+make -C server
 #todo: run if changed..
 blocktime=${T=0}
 
@@ -72,9 +71,8 @@ cd $root
 sleep 1
 
 case "$*" in
-	test) 	cmd="npx truffle test" ;; 
+	test) 	cmd="npx truffle test" ;;
 	test/*) cmd="npx truffle test $*" ;;
-	web)	cmd="./init_metacoin.sh web" ;;
 	*)	echo "Unknown command. do '$0 help'"; exit 1 ;;
 esac
 
@@ -92,6 +90,5 @@ exit $exitcode
 else
 
 $gobin/RelayHttpServer -RelayHubAddress $hubaddr -Workdir $root/build/server
-	
-fi
 
+fi

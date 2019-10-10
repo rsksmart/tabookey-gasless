@@ -3,7 +3,7 @@
 ## What is it?
 
 It's a mechanism for dApps to work with gas-less clients.
-Users are no longer required to install browser extensions, or buy Ether in order to use the dApp. 
+Users are no longer required to install browser extensions, or buy Ether in order to use the dApp.
 
 The dApp owner decides which clients or what calls are allowed, and pays for the calls. It may use its own mechanism to manage its users.
 
@@ -11,7 +11,7 @@ Examples
 
 - Allow first-time install of an app, before the user buys any ether.
 - Allow users to pay for transactions with their credit cards and manage their credit.
-- For enterprise: trust employees to access the enterprise dApp. 
+- For enterprise: trust employees to access the enterprise dApp.
 
 Its very simple to adapt an existing contract and apps to use the Relays
 
@@ -33,8 +33,8 @@ doesn't trust neither the client nor the target contract, yet none can compromis
 ## Do I need Metamask/Mist/Hardware wallet ?
 
 Since clients no longer carry ether, you're not *required* to use strong wallet - you can keep the client's private key
-is a local file (cookie). 
-The client can use your local web3 account (e.g. MetaMask), or create a local private-key. 
+is a local file (cookie).
+The client can use your local web3 account (e.g. MetaMask), or create a local private-key.
 
 ## Is it safe?
 
@@ -47,8 +47,8 @@ All transaction are signed, both by the client (though its account doesn't have 
 - The client can be sure the relay did its job to relay the request, and didn't try to fool either the client or contract.
 - The Relay, even though its an off-chain component, is not trusted in any way, and can't DoS the system or steal funds. Any such attempt is cryptographically proven, and penalizes the relay before banning it from the network.
 
-Neither the relays in the network, nor the RelayHub contract are controlled by Tabookey in any way. 
-We will operate relays in the network, to make sure there's availability of relays, but so can anyone else. 
+Neither the relays in the network, nor the RelayHub contract are controlled by Tabookey in any way.
+We will operate relays in the network, to make sure there's availability of relays, but so can anyone else.
 The relays network is a free market, where relays compete based on transaction fees and quality of service, on equal grounds.
 
 ## Usage:
@@ -75,27 +75,9 @@ The above is a docker wrapper, containing build prerequisites (`go`, `abigen`, `
 
 	yarn test
 
-### Running a web client
+### Running the demo webapp + dApp
 
-Here's how to download and run our modified "MetaToken", modified to demonstrate supoprt for gasless transaction.
-In the tabookey-gasless folder do:
-
-	./dock/run.sh ./restart-relay.sh web
-
-Configure your MetaMask to Localhost:8545
-open your browser to `http://localhost:8080/`
-
-Notes
-
-- The MetaCoin app was modified to give initial 10000 META for every account.
-- It prompts you whether to use MetaMask account or "ephemeral" private key, saved as browser cookie.
-- Once you enter an amount and hit "transfer", a metamask "SIGN" dialog would appear.
-- After successful transaction, the amount of META tokens left is updated, to signify the transaction succeeded.
-- Restarting the `restart-relay.sh` script will kill ganache, so you must run `truffle migrate && truffle test` again
-	in the `webpack-box project`, to re-deploy the MetaCoin, and fund it with initial ether 
-	(remember: it's the contract that pays for transactions, not the calling webapp!)
-- MetaMask gets confused after node restart, so switch to another network (e.g. mainnet) and back to localhost.
-
+Provided is a very simple "Counter" contract along with a sample web app that uses a test relay network to send gasless transactions. See [demo-setup.md](demo-setup.md) for details.
 
 ### Components:
 
@@ -112,10 +94,10 @@ note that `yarn test` above runs the entire suite: it compiles the server, then 
 
 	tabookey = require( 'tabookey-gasless')
     provider = new tabookey.RelayProvider(web3.currentProvider, {} )
-    web3.setProvider(provider) 
+    web3.setProvider(provider)
 
 	//from now on, any transaction through this web3 will go through a relay
-	
+
 	MyContract = new web3.eth.Contract(...)
 
 	myContract = MyContract.at('...')
@@ -160,7 +142,7 @@ contract MyContract is RelayRecipient {
         return 0;
     }
 
-    // This is a sample contract method. 
+    // This is a sample contract method.
     // note that when receiving a request from a relay, the msg.sender is always a RelayHub.
     // You must change your contract to use get_sender() to get the real sender.
     // (its OK if someone calls this method directly: if no relay is involved, get_sender() returns msg.sender)
@@ -169,7 +151,37 @@ contract MyContract is RelayRecipient {
         ...
     }
 }
-	
+
 ```
 
 In the [samples/contracts](samples/contracts) folder there are several sample RelayRecipient implementations for general use-cases.
+
+## About this fork
+
+This is a fork of [the original project repository](https://github.com/tabookey/tabookey-gasless). Its purpose is to provide a version of Tabookey's Relay Network solution that can run both on top of the RSK network as well as of the Ethereum network. In order to achieve this compatibility, some minor changes were implemented both on the `RelayServer` and the `RelayClient` components. This is due to certain incompatibilities between the RSK and Ethereum nodes.
+
+### Change list
+
+The following changes were implemented in order to get the Relay Network working on top of the RSK network.
+
+On the `RelayServer`:
+
+- Forcing usage of a single outstanding request for JSON-RPC requests
+- Patched `go-ethereum` to allow for hexadecimal numbers with leading zeroes on JSON-RPC responses
+- Patched `go-ethereum`'s `GetPendingCodeAt` to use `latest` (`pending` hasn't yet been implemented on RSK's latest version)
+- Removed the `logsBloom` field from transaction receipts
+
+On the `RelayClient`:
+
+- Added compatibility with RSK's pending transaction error message
+
+Also, js tests were modified in order to allow for them to also run on a regtest RSK node (this was part of the compatibilization process). To run such tests, just configure the truffle network with the name `rsk` to point to a local regtest RSK node and execute:
+
+```
+./dock/run.sh npm run test-js-rsk
+```
+
+Last but not leasts, some bugs were fixed:
+
+- On the `RelayServer`: only look at the last relayer registration event
+- On the `RelayClient`: upon relaying failure, fix the error status setting

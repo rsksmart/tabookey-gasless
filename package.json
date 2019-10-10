@@ -42,7 +42,6 @@
     "lint": "eslint ./src ./test -f unix",
     "gsn-dock-relay": "./scripts/gsn-dock-relay",
     "gsn-dock-relay-ganache": "./scripts/gsn-dock-relay-ganache",
-    "web": "./restart-relay.sh web",
     "trace": "MODE=trace truffle test",
     "coverage": "./scripts/run-coverage",
     "clean-coverage": "shx rm -rf coverage coverage.json",
