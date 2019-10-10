@@ -158,7 +158,7 @@ In the [samples/contracts](samples/contracts) folder there are several sample Re
 
 ## About this fork
 
-This is a fork of [the original project repository](https://github.com/tabookey/tabookey-gasless). It's purpose is to provide a version of Tabookey's Relay Network that can run both on top of the RSK network as well as of Ethereum. In order to achieve this, some minor changes were been implemented both on the `RelayServer` and the `RelayClient` components given certain incompatibilities between the RSK and Ethereum nodes.
+This is a fork of [the original project repository](https://github.com/tabookey/tabookey-gasless). Its purpose is to provide a version of Tabookey's Relay Network solution that can run both on top of the RSK network as well as of the Ethereum network. In order to achieve this compatibility, some minor changes were implemented both on the `RelayServer` and the `RelayClient` components. This is due to certain incompatibilities between the RSK and Ethereum nodes.
 
 ### Change list
 
