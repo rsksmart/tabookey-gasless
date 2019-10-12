@@ -41,7 +41,7 @@ contract('SampleRecipient', function (accounts) {
 
     it("should allow owner to withdraw balance from RelayHub", async function () {
         let sample = await SampleRecipient.deployed()
-        let deposit = new Big("100000000000000000")
+        let deposit = new Big("10000000000000000")
         let rhub = await RelayHub.deployed()
         await rhub.depositFor(sample.address, {from: accounts[0], value: deposit})
         let depositActual = await rhub.balanceOf(sample.address)
