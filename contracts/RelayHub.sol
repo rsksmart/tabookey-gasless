@@ -11,8 +11,14 @@ import "openzeppelin-solidity/contracts/cryptography/ECDSA.sol";
 contract RelayHub is IRelayHub {
     using ECDSA for bytes32;
 
+    // IMPORTANT: RSK-related adjustments
+    // The original minimumStake, minimumRelayBalance and maximumRecipientDeposit
+    // were adjusted to reflect an estimated equivalence of 1 Ether = 0.02 RBTC
+    // This is so that running a relayer is not significatively more expensive
+    // on RSK given the value of a Bitcoin is *higher* than that of an Ether.
+
     // Minimum stake a relay can have. An attack to the network will never cost less than half this value.
-    uint256 constant private minimumStake = 1 ether;
+    uint256 constant private minimumStake = 0.02 ether;
 
     // Minimum unstake delay. A relay needs to wait for this time to elapse after deregistering to retrieve its stake.
     uint256 constant private minimumUnstakeDelay = 1 weeks;
@@ -21,10 +27,10 @@ contract RelayHub is IRelayHub {
 
     // Minimum balance required for a relay to register or re-register. Prevents user error in registering a relay that
     // will not be able to immediatly start serving requests.
-    uint256 constant private minimumRelayBalance = 0.1 ether;
+    uint256 constant private minimumRelayBalance = 0.002 ether;
 
     // Maximum funds that can be deposited at once. Prevents user error by disallowing large deposits.
-    uint256 constant private maximumRecipientDeposit = 2 ether;
+    uint256 constant private maximumRecipientDeposit = 0.04 ether;
 
     /**
     * the total gas overhead of relayCall(), before the first gasleft() and after the last gasleft().
