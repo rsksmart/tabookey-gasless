@@ -77,7 +77,7 @@ contract('RelayHub', function ([_, relayOwner, __relay, otherRelay, sender, othe
       });
 
       it('relays cannot be staked for with a stake under the minimum', async function () {
-        const minimumStake = ether('1');
+        const minimumStake = ether('0.02');
 
         await expectRevert(
           relayHub.stake(relay, time.duration.weeks(4), { value: minimumStake.subn(1), from: other }),
@@ -556,7 +556,7 @@ contract('RelayHub', function ([_, relayOwner, __relay, otherRelay, sender, othe
               getTransactionHash(sender, recipient.address, txData, fee, gasPrice, gasLimit, senderNonce, relayHub.address, relay)
             );
 
-            await relayHub.depositFor(recipient.address, { from: other, value: ether('1') });
+            await relayHub.depositFor(recipient.address, { from: other, value: ether('0.01') });
             const relayCallTx = await relayHub.relayCall(sender, recipient.address, txData, fee, gasPrice, gasLimit, senderNonce, signature, '0x', testutils.buildTxParameters({ from: relay, gasPrice, gasLimit: gasLimitTx }));
             const relayCallTxDataSig = await getDataAndSignatureFromHash(relayCallTx.tx);
             await expectRevert(
@@ -746,11 +746,11 @@ contract('RelayHub', function ([_, relayOwner, __relay, otherRelay, sender, othe
     }
 
     it('can deposit for self', async function () {
-      await testDeposit(other, other, ether('1'));
+      await testDeposit(other, other, ether('0.01'));
     });
 
     it('can deposit for others', async function () {
-      await testDeposit(other, recipient.address, ether('1'));
+      await testDeposit(other, recipient.address, ether('0.01'));
     });
 
     it('cannot deposit amounts larger than the limit', async function () {
@@ -761,15 +761,15 @@ contract('RelayHub', function ([_, relayOwner, __relay, otherRelay, sender, othe
     });
 
     it('can deposit multiple times and have a total deposit larger than the limit', async function () {
-      await relayHub.depositFor(recipient.address, { from: other, value: ether('1'), gasPrice: 0 });
-      await relayHub.depositFor(recipient.address, { from: other, value: ether('1'), gasPrice: 0 });
-      await relayHub.depositFor(recipient.address, { from: other, value: ether('1'), gasPrice: 0 });
+      await relayHub.depositFor(recipient.address, { from: other, value: ether('0.01'), gasPrice: 0 });
+      await relayHub.depositFor(recipient.address, { from: other, value: ether('0.02'), gasPrice: 0 });
+      await relayHub.depositFor(recipient.address, { from: other, value: ether('0.04'), gasPrice: 0 });
 
-      expect(await relayHub.balanceOf(recipient.address)).to.be.bignumber.equals(ether('3'));
+      expect(await relayHub.balanceOf(recipient.address)).to.be.bignumber.equals(ether('0.07'));
     });
 
     it('accounts with deposits can withdraw partially', async function () {
-      const amount = ether('1');
+      const amount = ether('0.01');
       await testDeposit(other, other, amount);
 
       const { logs } = await relayHub.withdraw(amount.divn(2), { from: other });
@@ -777,7 +777,7 @@ contract('RelayHub', function ([_, relayOwner, __relay, otherRelay, sender, othe
     });
 
     it('accounts with deposits can withdraw all their balance', async function () {
-      const amount = ether('1');
+      const amount = ether('0.01');
       await testDeposit(other, other, amount);
 
       const { logs } = await relayHub.withdraw(amount, { from: other });
@@ -785,7 +785,7 @@ contract('RelayHub', function ([_, relayOwner, __relay, otherRelay, sender, othe
     });
 
     it('accounts cannot withdraw more than their balance', async function () {
-      const amount = ether('1');
+      const amount = ether('0.01');
       await testDeposit(other, other, amount);
 
       await expectRevert(relayHub.withdraw(amount.addn(1), { from: other }), 'insufficient funds');
@@ -826,7 +826,7 @@ contract('RelayHub', function ([_, relayOwner, __relay, otherRelay, sender, othe
 
       context('with funded recipient', function () {
         beforeEach(async function () {
-          await relayHub.depositFor(recipient.address, { value: ether('1'), from: other });
+          await relayHub.depositFor(recipient.address, { value: ether('0.01'), from: other });
         });
 
         it('preRelayedCall receives values returned in acceptRelayedCall', async function () {
