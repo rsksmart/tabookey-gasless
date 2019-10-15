@@ -23,6 +23,8 @@ contract Counter is RelayRecipient, Ownable {
         msg.sender.transfer(balance);
     }
 
+    function() external payable {}
+
     function reset() public {
         address sender = getSender();
         count[sender] = 0;
