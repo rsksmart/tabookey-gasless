@@ -1,4 +1,4 @@
-# Tabookey Relay Network
+# RSK Gas Station Network
 
 ## What is it?
 
@@ -62,8 +62,6 @@ Prerequisites:
 Install node pakcages:
 
 	yarn
-
-
 
 Compile and run tests: (For Docker users)
 
@@ -155,6 +153,10 @@ contract MyContract is RelayRecipient {
 ```
 
 In the [samples/contracts](samples/contracts) folder there are several sample RelayRecipient implementations for general use-cases.
+
+### Running your own relayer (or deploying your own GSN!)
+
+Refer to [this document](deploy/README.md) for specific details on running your own relay server or deploying your own GSN.
 
 ## About this fork
 
