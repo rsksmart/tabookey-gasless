@@ -96,6 +96,8 @@ contract SampleRecipient is RelayRecipient, Ownable {
         emit SampleRecipientEmitted(message, getSender(), msg.sender, tx.origin);
     }
 
+    function dontEmitMessage(string memory message) public {}
+
     function emitMessageNoParams() public {
         emit SampleRecipientEmitted("Method with no parameters", getSender(), msg.sender, tx.origin);
     }
@@ -131,7 +133,7 @@ contract SampleRecipient is RelayRecipient, Ownable {
         if (approvalData.length > 0) {
             // extract owner sig from all signature bytes
             if (keccak256(abi.encodePacked("I approve", from)).toEthSignedMessageHash().recover(approvalData) != owner()) {
-                return (13, "");
+                return (13, "test: not approved");
             }
         }
 
@@ -194,7 +196,7 @@ contract SampleRecipient is RelayRecipient, Ownable {
 
     function withdrawAllBalance() private returns (uint256) {
         uint256 balance = getRelayHub().balanceOf(address(this));
-        getRelayHub().withdraw(balance);
+        getRelayHub().withdraw(balance, address(this));
         return balance;
     }
 }

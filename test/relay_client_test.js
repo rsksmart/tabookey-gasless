@@ -124,7 +124,8 @@ contract('RelayClient', function (accounts) {
         })
     });
 
-    it("should consider a transaction with an incorrect approval as invalid", async function () {
+    [false,true].forEach( validateCanRelay =>
+    it("should consider a transaction with an incorrect approval as invalid " + (validateCanRelay ? "":"(without client calling canRelay)" ), async function () {
         const expected_error = 13
         let encoded = sr.contract.methods.emitMessage("hello world").encodeABI()
         let to = sr.address;
@@ -135,6 +136,10 @@ contract('RelayClient', function (accounts) {
             txfee: 12,
             gas_limit: 1000000
         }
+        //only add parameter if false (true should be the default..)
+        if ( !validateCanRelay )
+            options.validateCanRelay = false
+
         let relay_client_config = {
             relayUrl: localhostOne,
             relayAddress: relayAddress,
@@ -148,9 +153,15 @@ contract('RelayClient', function (accounts) {
             assert.fail()
         }
         catch (error){
-            assert.equal(true, error.otherErrors[0].includes("canRelay() view function returned error code=" + expected_error))
+            if ( validateCanRelay ) {
+                //error checked by relayTransaction:
+                assert.equal("Error: canRelay failed: 13: test: not approved", error.toString())
+            } else {
+                //error checked by relay:
+                assert.equal(true, error.otherErrors[0].includes("canRelay() view function returned error code=" + expected_error))
+            }
         }
-    });
+    }));
 
     it("should consider a transaction with a relay tx nonce higher than expected as invalid", async function () {
         let encoded = sr.contract.methods.emitMessage("hello world").encodeABI()
@@ -239,6 +250,37 @@ contract('RelayClient', function (accounts) {
         res = await sr.emitMessage("hello again", { from: accounts[3] })
         assert.equal(res.logs[1].event, "SampleRecipientEmitted")
         assert.equal(res.logs[1].args.message, "hello again")
+
+        assert.equal(res.logs[1].args.realSender, accounts[3])
+
+    })
+
+    it("should relay transparently with long encoded function", async () => {
+
+        relay_client_config = {
+
+            txfee: 12,
+            force_gasPrice: gasPrice,			//override requested gas price
+            force_gasLimit: 4000029,		//override requested gas limit.
+            verbose: process.env.DEBUG
+        }
+
+        let relayProvider = new RelayProvider(web3.currentProvider, relay_client_config)
+        // web3.setProvider(relayProvider)
+
+        //NOTE: in real application its enough to set the provider in web3.
+        // however, in Truffle, all contracts are built BEFORE the test have started, and COPIED the web3,
+        // so changing the global one is not enough...
+        SampleRecipient.web3.setProvider(relayProvider)
+
+        let res = await sr.emitMessage("hello world".repeat(1000), {from: gasLess})
+        assert.equal(res.logs[1].event, "SampleRecipientEmitted")
+        assert.equal(res.logs[1].args.message, "hello world".repeat(1000))
+        assert.equal(res.logs[1].args.realSender, gasLess)
+        assert.equal(res.logs[1].args.msgSender.toLowerCase(), rhub.address.toLowerCase())
+        res = await sr.emitMessage("hello again".repeat(1000), { from: accounts[3] })
+        assert.equal(res.logs[1].event, "SampleRecipientEmitted")
+        assert.equal(res.logs[1].args.message, "hello again".repeat(1000))
 
         assert.equal(res.logs[1].args.realSender, accounts[3])
 

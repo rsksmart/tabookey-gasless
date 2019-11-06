@@ -18,7 +18,7 @@ const testutils = require('./testutils');
 // (see: https://chainid.network/)
 const RSK_CHAIN_ID = 33;
 
-contract('RelayHub', function ([_, relayOwner, __relay, otherRelay, sender, other]) {  // eslint-disable-line no-unused-vars
+contract('RelayHub', function ([_, relayOwner, __relay, otherRelay, sender, other, dest]) {  // eslint-disable-line no-unused-vars
   const RelayCallStatusCodes = {
     OK: new BN('0'),
     RelayedCallFailed: new BN('1'),
@@ -772,23 +772,23 @@ contract('RelayHub', function ([_, relayOwner, __relay, otherRelay, sender, othe
       const amount = ether('0.01');
       await testDeposit(other, other, amount);
 
-      const { logs } = await relayHub.withdraw(amount.divn(2), { from: other });
-      expectEvent.inLogs(logs, 'Withdrawn', { dest: other, amount: amount.divn(2) });
+      const { logs } = await relayHub.withdraw(amount.divn(2), dest, { from: other });
+      expectEvent.inLogs(logs, 'Withdrawn', { account: other, dest, amount: amount.divn(2) });
     });
 
     it('accounts with deposits can withdraw all their balance', async function () {
       const amount = ether('0.01');
       await testDeposit(other, other, amount);
 
-      const { logs } = await relayHub.withdraw(amount, { from: other });
-      expectEvent.inLogs(logs, 'Withdrawn', { dest: other, amount });
+      const { logs } = await relayHub.withdraw(amount, dest, { from: other });
+      expectEvent.inLogs(logs, 'Withdrawn', { account: other, dest, amount });
     });
 
     it('accounts cannot withdraw more than their balance', async function () {
       const amount = ether('0.01');
       await testDeposit(other, other, amount);
 
-      await expectRevert(relayHub.withdraw(amount.addn(1), { from: other }), 'insufficient funds');
+      await expectRevert(relayHub.withdraw(amount.addn(1), dest, { from: other }), 'insufficient funds');
     });
   });
 
