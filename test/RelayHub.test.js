@@ -51,7 +51,8 @@ contract('RelayHub', function ([_, relayOwner, __relay, otherRelay, sender, othe
       if (await testutils.isRsk()) {
           relay = web3.utils.toChecksumAddress(await web3.eth.personal.importRawKey(relayCallArgs.privateKey, 'password'));
           await web3.eth.personal.unlockAccount(relay, 'password');
-          await web3.eth.sendTransaction({ from: _, to: relay, value: web3.utils.toWei('5', 'ether') });
+          await web3.eth.sendTransaction({ from: _, to: relay, value: web3.utils.toWei('10', 'ether') });
+          await web3.eth.sendTransaction({ from: _, to: other, value: web3.utils.toWei('10', 'ether') });
       } else {
           relay = __relay;
       }
@@ -302,7 +303,7 @@ contract('RelayHub', function ([_, relayOwner, __relay, otherRelay, sender, othe
     });
 
     describe('unstaking', function () {
-      it('unstaked relays cannnot be unstaked', async function () {
+      it('unstaked relays cannot be unstaked', async function () {
         await expectRevert(relayHub.unstake(relay, { from: other }), 'canUnstake failed');
       });
 
@@ -314,7 +315,7 @@ contract('RelayHub', function ([_, relayOwner, __relay, otherRelay, sender, othe
           await relayHub.stake(relay, unstakeDelay, { value: stake, from: relayOwner });
         });
 
-        it('unregistered relays cannnot be unstaked', async function () {
+        it('unregistered relays cannot be unstaked', async function () {
           await expectRevert(relayHub.unstake(relay, { from: relayOwner }), 'canUnstake failed');
         });
 
