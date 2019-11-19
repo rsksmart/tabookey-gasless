@@ -10,6 +10,7 @@ import (
 	"librelay/txstore"
 	"log"
 	"math/big"
+	"strings"
 	"sync"
 	"time"
 	"net/http"
@@ -135,12 +136,9 @@ type RelayServer struct {
 	Url                   string
 	Port                  string
 	RelayHubAddress       common.Address
-	StakeAmount           *big.Int
-	GasLimit              uint64
 	DefaultGasPrice       int64
 	GasPricePercent       *big.Int
 	PrivateKey            *ecdsa.PrivateKey
-	UnstakeDelay          *big.Int
 	RegistrationBlockRate uint64
 	EthereumNodeURL       string
 	gasPrice              *big.Int // set dynamically as suggestedGasPrice*(GasPricePercent+100)/100
@@ -149,6 +147,7 @@ type RelayServer struct {
 	TxStore               txstore.ITxStore
 	rhub                  *librelay.IRelayHub
 	clock                 clock.Clock
+	DevMode               bool
 }
 
 type RelayParams struct {
@@ -178,17 +177,15 @@ func NewRelayServer(
 	Url string,
 	Port string,
 	RelayHubAddress common.Address,
-	StakeAmount *big.Int,
-	GasLimit uint64,
 	DefaultGasPrice int64,
 	GasPricePercent *big.Int,
 	PrivateKey *ecdsa.PrivateKey,
-	UnstakeDelay *big.Int,
 	RegistrationBlockRate uint64,
 	EthereumNodeURL string,
 	Client IClient,
 	TxStore txstore.ITxStore,
-	clk clock.Clock) (*RelayServer, error) {
+	clk clock.Clock,
+	DevMode bool) (*RelayServer, error) {
 
 	rhub, err := librelay.NewIRelayHub(RelayHubAddress, Client)
 	if err != nil {
@@ -205,18 +202,16 @@ func NewRelayServer(
 		Url:                   Url,
 		Port:                  Port,
 		RelayHubAddress:       RelayHubAddress,
-		StakeAmount:           StakeAmount,
-		GasLimit:              GasLimit,
 		DefaultGasPrice:       DefaultGasPrice,
 		GasPricePercent:       GasPricePercent,
 		PrivateKey:            PrivateKey,
-		UnstakeDelay:          UnstakeDelay,
 		RegistrationBlockRate: RegistrationBlockRate,
 		EthereumNodeURL:       EthereumNodeURL,
 		Client:                Client,
 		TxStore:               TxStore,
 		rhub:                  rhub,
 		clock:                 clk,
+		DevMode:               DevMode,
 	}
 	return relay, err
 }
@@ -230,6 +225,10 @@ func (relay *RelayServer) ChainID() (chainID *big.Int, err error) {
 	if err != nil {
 		log.Println("ChainID() failed", err)
 		return
+	}
+
+	if relay.DevMode && chainID.Int64() < 1000 {
+		log.Fatalf("Cowardly refusing to connect to chain with ID=%s in DevMode. Only chains with ID 1000 or higher are supported for dev mode to prevent the relay from being accidentally penalized.", chainID.String())
 	}
 
 	relay.chainID = chainID
@@ -360,9 +359,6 @@ func (relay *RelayServer) RegistrationDate() (when int64, err error) {
 	if (iter.Event == nil) ||
 		(bytes.Compare(iter.Event.Relay.Bytes(), relay.Address().Bytes()) != 0) ||
 		(iter.Event.TransactionFee.Cmp(relay.Fee) != 0) ||
-		(iter.Event.Stake.Cmp(relay.StakeAmount) < 0) ||
-		//(iter.Event.Stake.Cmp(relay.StakeAmount) != 0) ||
-		//(iter.Event.UnstakeDelay.Cmp(relay.UnstakeDelay) != 0) ||
 		(iter.Event.Url != relay.Url) {
 		return 0, fmt.Errorf("Could not receive RelayAdded() events for our relay")
 	}
@@ -398,7 +394,7 @@ func (relay *RelayServer) SendBalanceToOwner() (err error) {
 		log.Println(err)
 		return
 	}
-	if balance.Uint64() == 0 {
+	if balance.Cmp(big.NewInt(0)) == 0 {
 		log.Println("SendBalanceToOwner: balance is 0")
 		return
 	}
@@ -411,8 +407,9 @@ func (relay *RelayServer) SendBalanceToOwner() (err error) {
 		log.Println(err)
 		return
 	}
-	cost := gasPrice.Uint64() * gasLimit
-	value := big.NewInt(int64(balance.Uint64() - cost))
+	cost := big.NewInt(int64(gasPrice.Uint64() * gasLimit))
+	value := big.NewInt(0)
+	value.Sub(balance, cost)
 
 	tx, err := relay.sendPlainTransaction(
 		fmt.Sprintf("SendBalanceToOwner(to=%s)", relay.OwnerAddress.Hex()),
@@ -470,11 +467,12 @@ func (relay *RelayServer) CreateRelayTransaction(request RelayTransactionRequest
 	}
 
 	if res.Uint64() != 0 {
-		errStr := fmt.Sprint("EncodedFunction:", request.EncodedFunction, "From:", request.From.Hex(), "To:", request.To.Hex(),
+		errStr := fmt.Sprintln("EncodedFunction:", request.EncodedFunction, "From:", request.From.Hex(), "To:", request.To.Hex(),
 			"GasPrice:", request.GasPrice.String(), "GasLimit:", request.GasLimit.String(), "Nonce:", request.RecipientNonce.String(), "Fee:",
 			request.RelayFee.String(), "AppData:", hexutil.Encode(request.ApprovalData), "Sig:", hexutil.Encode(request.Signature))
+		errStr = errStr[:len(errStr) - 1]
 		err = fmt.Errorf("canRelay() view function returned error code=%d. params:%s", res, errStr)
-		log.Println(err, errStr)
+		log.Println(err)
 		return
 	}
 
@@ -491,6 +489,8 @@ func (relay *RelayServer) CreateRelayTransaction(request RelayTransactionRequest
 		log.Println(err)
 		return
 	}
+	// Adding the exact gas cost of the encoded function as it is the only dynamic parameter in the relayed call
+	requiredGas.Add(requiredGas, getEncodedFunctionGas(request.EncodedFunction))
 
 	maxCharge, err := relay.rhub.MaxPossibleCharge(callOpt, &request.GasLimit, &request.GasPrice, &request.RelayFee)
 	if err != nil {
@@ -730,7 +730,8 @@ func (relay *RelayServer) pollNonce() (nonce uint64, err error) {
 		return
 	}
 
-	if lastNonce <= nonce {
+	// Always overwrite nonce cache if on dev mode
+	if relay.DevMode || lastNonce <= nonce {
 		lastNonce = nonce
 	} else {
 		nonce = lastNonce
@@ -742,6 +743,10 @@ const confirmationsNeeded = 12
 const pendingTransactionTimeout = 5 * 60 // 5 minutes
 
 func (relay *RelayServer) UpdateUnconfirmedTransactions() (newTx *types.Transaction, err error) {
+	if relay.DevMode {
+		return nil, nil
+	}
+
 	// Load unconfirmed transactions from store, and bail if there are none
 	tx, err := relay.TxStore.GetFirstTransaction()
 	if err != nil {
@@ -848,4 +853,23 @@ func (relay *RelayServer) replayUnconfirmedTxs(client *ethclient.Client) {
 
 func (relay *RelayServer) Close() (err error) {
 	return relay.TxStore.Close()
+}
+
+/**
+ * @return Gas cost of encoded function as parameter in relayedCall
+ * As per the yellowpaper, each non-zero byte costs 68 and zero byte costs 4
+ */
+func getEncodedFunctionGas(encodedFunction string) (*big.Int){
+	if strings.HasPrefix(encodedFunction, "0x") {
+		encodedFunction = encodedFunction[2:]
+	}
+	gasLimitSlack := int64(0)
+	for i := 0; i < len(encodedFunction); i += 2 {
+		if encodedFunction[i:i+2] == "00" {
+			gasLimitSlack += 4
+		} else {
+			gasLimitSlack += 68
+		}
+	}
+	return big.NewInt(gasLimitSlack)
 }

@@ -9,6 +9,9 @@ import "openzeppelin-solidity/contracts/math/SafeMath.sol";
 import "openzeppelin-solidity/contracts/cryptography/ECDSA.sol";
 
 contract RelayHub is IRelayHub {
+
+    string constant commitId = "$Id$";
+
     using ECDSA for bytes32;
 
     // IMPORTANT: RSK-related adjustments
@@ -175,14 +178,14 @@ contract RelayHub is IRelayHub {
      * note that while everyone can `depositFor()` a contract, only
      * the contract itself can withdraw its funds.
      */
-    function withdraw(uint256 amount) public {
+    function withdraw(uint256 amount, address payable dest) public {
         address payable account = msg.sender;
         require(balances[account] >= amount, "insufficient funds");
 
         balances[account] -= amount;
-        account.transfer(amount);
+        dest.transfer(amount);
 
-        emit Withdrawn(account, amount);
+        emit Withdrawn(account, dest, amount);
     }
 
     function getNonce(address from) view external returns (uint256) {
@@ -290,7 +293,7 @@ contract RelayHub is IRelayHub {
 
         // We don't yet know how much gas will be used by the recipient, so we make sure there are enough funds to pay
         // for the maximum possible charge.
-        require(gasPrice * initialGas <= balances[recipient], "Recipient balance too low");
+        require(maxPossibleCharge(gasLimit, gasPrice, transactionFee) <= balances[recipient], "Recipient balance too low");
 
         bytes4 functionSelector = LibBytes.readBytes4(encodedFunction, 0);
 

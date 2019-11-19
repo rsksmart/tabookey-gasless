@@ -17,9 +17,9 @@ contract Counter is RelayRecipient, Ownable {
         getRelayHub().depositFor.value(msg.value)(address(this));
     }
 
-    function withdraw() public onlyOwner {
+    function withdraw(address payable dest) public onlyOwner {
         uint256 balance = getRelayHub().balanceOf(address(this));
-        getRelayHub().withdraw(balance);
+        getRelayHub().withdraw(balance, dest);
         msg.sender.transfer(balance);
     }
 

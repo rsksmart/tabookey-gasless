@@ -19,11 +19,11 @@ import (
 	"time"
 )
 
-const VERSION = "0.4.0"
+const VERSION = "0.4.1"
 
-var KeystoreDir = filepath.Join(os.Getenv("PWD"), "build/server/keystore")
+var KeystoreDir = filepath.Join(os.Getenv("PWD"), "data/keystore")
 var delayBetweenRegistrations = 24 * int64(time.Hour/time.Second) // time.Duration is in nanosec - converting to sec like unix
-var shortSleep bool                                               // Whether we wait after calls to blockchain or return (almost) immediately. Usually when testing...
+var devMode bool                                                  // Whether we wait after calls to blockchain or return (almost) immediately. Usually when testing...
 
 var ready = false
 var removed = false
@@ -37,7 +37,7 @@ var stopListeningToRelayRemoved chan bool
 
 var timeUnit time.Duration
 
-const minimumRelayBalance = 0.1 * params.Ether
+var minimumRelayBalance = big.NewInt(1e17) // 0.1 eth
 
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
@@ -51,15 +51,15 @@ func main() {
 	http.HandleFunc("/getaddr", getEthAddrHandler)
 
 	timeUnit = time.Minute
-	if shortSleep {
-		timeUnit = 100 * time.Millisecond
+	if devMode {
+		timeUnit = time.Second
 	}
 	stopKeepAlive = schedule(keepAlive, 60*timeUnit, 0)
 	stopRefreshBlockchainView = schedule(refreshBlockchainView, 1*timeUnit, 0)
 	stopUpdatingPendingTxs = schedule(updatePendingTxs, 1*timeUnit, 0)
 	stopListeningToRelayRemoved = schedule(stopServingOnRelayRemoved, 1*timeUnit, 0)
 
-	log.Println("RelayHttpServer started.Listening on port: ", relay.GetPort())
+	log.Println("RelayHttpServer started. Listening on port: ", relay.GetPort())
 	err := server.ListenAndServe()
 	if err != nil {
 		log.Fatalln(err)
@@ -89,13 +89,13 @@ func assureRelayReady(fn http.HandlerFunc) http.HandlerFunc {
 			w.Write([]byte("{\"error\":\"" + err.Error() + "\"}"))
 			return
 		}
-		if balance.Uint64() == 0 {
+		if balance.Cmp(big.NewInt(0)) == 0 {
 			err = fmt.Errorf("Waiting for funding...")
 			log.Println(err)
 			w.Write([]byte("{\"error\":\"" + err.Error() + "\"}"))
 			return
 		}
-		log.Println("Relay balance:", balance.Uint64())
+		log.Println("Relay balance:", balance.String())
 
 		gasPrice := relay.GasPrice()
 		if gasPrice.Uint64() == 0 {
@@ -104,7 +104,7 @@ func assureRelayReady(fn http.HandlerFunc) http.HandlerFunc {
 			w.Write([]byte("{\"error\":\"" + err.Error() + "\"}"))
 			return
 		}
-		log.Println("Relay received gasPrice::", gasPrice.Uint64())
+		log.Println("Relay received gasPrice:", gasPrice.Uint64())
 		fn(w, r)
 	}
 
@@ -175,16 +175,13 @@ func parseCommandLine() (relayParams librelay.RelayParams) {
 	fee := flag.Int64("Fee", 70, "Relay's per transaction fee")
 	urlStr := flag.String("Url", "http://localhost:8090", "Relay server's url ")
 	port := flag.String("Port", "", "Relay server's port")
-	relayHubAddress := flag.String("RelayHubAddress", "0x254dffcd3277c0b1660f6d42efbb754edababc2b", "RelayHub address")
-	stakeAmount := flag.Int64("StakeAmount", 10000000000000000, "Relay's stake (in wei)")
-	gasLimit := flag.Uint64("GasLimit", 100000, "Relay's gas limit per transaction")
+	relayHubAddress := flag.String("RelayHubAddress", "0x537F27a04470242ff6b2c3ad247A05248d0d27CE", "RelayHub address")
 	defaultGasPrice := flag.Int64("DefaultGasPrice", int64(params.GWei), "Relay's default gasPrice per (non-relayed) transaction in wei")
 	gasPricePercent := flag.Int64("GasPricePercent", 10, "Relay's gas price increase as percentage from current average. GasPrice = (100+GasPricePercent)/100 * eth_gasPrice() ")
-	unstakeDelay := flag.Int64("UnstakeDelay", 1200, "Relay's time delay before being able to unsatke from relayhub (in days)")
 	registrationBlockRate := flag.Uint64("RegistrationBlockRate", 5800, "Relay registeration rate (in blocks)")
 	ethereumNodeUrl := flag.String("EthereumNodeUrl", "http://localhost:8545", "The relay's ethereum node")
-	workdir := flag.String("Workdir", filepath.Join(os.Getenv("PWD"), "build/server"), "The relay server's workdir")
-	flag.BoolVar(&shortSleep, "ShortSleep", false, "Whether we wait after calls to blockchain or return (almost) immediately")
+	workdir := flag.String("Workdir", filepath.Join(os.Getenv("PWD"), "data"), "The relay server's workdir")
+	flag.BoolVar(&devMode, "DevMode", false, "Enable developer mode (do not retry unconfirmed txs, do not cache account nonce, do not wait after calls to the chain, faster polling)")
 
 	flag.Parse()
 
@@ -202,20 +199,20 @@ func parseCommandLine() (relayParams librelay.RelayParams) {
 
 	relayParams.Port = *port
 	relayParams.RelayHubAddress = common.HexToAddress(*relayHubAddress)
-	relayParams.StakeAmount = big.NewInt(*stakeAmount)
-	relayParams.GasLimit = *gasLimit
 	relayParams.DefaultGasPrice = *defaultGasPrice
 	relayParams.GasPricePercent = big.NewInt(*gasPricePercent)
-	relayParams.UnstakeDelay = big.NewInt(*unstakeDelay)
 	relayParams.RegistrationBlockRate = *registrationBlockRate
 	relayParams.EthereumNodeURL = *ethereumNodeUrl
 	relayParams.DBFile = filepath.Join(*workdir, "db")
+	relayParams.DevMode = devMode
 
 	KeystoreDir = filepath.Join(*workdir, "keystore")
 
 	log.Println("Using RelayHub address: " + relayParams.RelayHubAddress.String())
 	log.Println("Using workdir: " + *workdir)
-	log.Println("shortsleep? ", shortSleep)
+	if devMode {
+		log.Println("Using dev mode")
+	}
 
 	return relayParams
 
@@ -237,10 +234,9 @@ func configRelay(relayParams librelay.RelayParams) {
 	}
 	relay, err = librelay.NewRelayServer(
 		relayParams.OwnerAddress, relayParams.Fee, relayParams.Url, relayParams.Port,
-		relayParams.RelayHubAddress, relayParams.StakeAmount,
-		relayParams.GasLimit, relayParams.DefaultGasPrice, relayParams.GasPricePercent,
-		privateKey, relayParams.UnstakeDelay, relayParams.RegistrationBlockRate, relayParams.EthereumNodeURL,
-		client, txStore, nil)
+		relayParams.RelayHubAddress, relayParams.DefaultGasPrice, relayParams.GasPricePercent,
+		privateKey, relayParams.RegistrationBlockRate, relayParams.EthereumNodeURL,
+		client, txStore, nil, relayParams.DevMode)
 	if err != nil {
 		log.Println("Could not create Relay Server", err)
 		return
@@ -260,7 +256,7 @@ func refreshBlockchainView() {
 			log.Println(err)
 		}
 		ready = false
-		sleep(15*time.Second, shortSleep)
+		sleep(15*time.Second, devMode)
 	}
 
 	for err := relay.RefreshGasPrice(); err != nil; err = relay.RefreshGasPrice() {
@@ -268,7 +264,7 @@ func refreshBlockchainView() {
 			log.Println(err)
 		}
 		ready = false
-		sleep(10*time.Second, shortSleep)
+		sleep(10*time.Second, devMode)
 
 	}
 	gasPrice := relay.GasPrice()
@@ -303,7 +299,7 @@ func waitForOwnerActions() {
 		}
 		ready = false
 		log.Println("Waiting for stake...")
-		sleep(5*time.Second, shortSleep)
+		sleep(5*time.Second, devMode)
 	}
 
 	// wait for funding
@@ -312,10 +308,10 @@ func waitForOwnerActions() {
 		log.Println(err)
 		return
 	}
-	for ; err != nil || balance.Uint64() <= minimumRelayBalance; balance, err = relay.Balance() {
+	for ; err != nil || balance.Cmp(minimumRelayBalance) <= 0; balance, err = relay.Balance() {
 		ready = false
-		log.Println("Server's balance too low. Waiting for funding...")
-		sleep(10*time.Second, shortSleep)
+		log.Printf("Server's balance too low (%s, required %s). Waiting for funding...", balance.String(), minimumRelayBalance.String())
+		sleep(10*time.Second, devMode)
 	}
 	log.Println("Relay funded. Balance:", balance)
 }
@@ -342,7 +338,7 @@ func keepAlive() {
 		}
 		log.Println(err)
 		log.Println("Trying to register again...")
-		sleep(1*time.Minute, shortSleep)
+		sleep(1*time.Minute, devMode)
 	}
 	log.Println("Done registering")
 }
@@ -372,13 +368,13 @@ func shutdownOnRelayUnstaked() {
 	if removed {
 		log.Println("Relay removed. Listening to Unstaked event")
 		log.Println("Relay unstaked. Sending balance back to owner")
-		sleep(2*time.Minute, shortSleep)
+		sleep(2*time.Minute, devMode)
 		for {
 			err = relay.SendBalanceToOwner()
 			if err == nil {
 				break
 			}
-			sleep(5*time.Second, shortSleep)
+			sleep(5*time.Second, devMode)
 		}
 		server.Close()
 	}

@@ -18,7 +18,7 @@ const testutils = require('./testutils');
 // (see: https://chainid.network/)
 const RSK_CHAIN_ID = 33;
 
-contract('RelayHub', function ([_, relayOwner, __relay, otherRelay, sender, other]) {  // eslint-disable-line no-unused-vars
+contract('RelayHub', function ([_, relayOwner, __relay, otherRelay, sender, other, dest]) {  // eslint-disable-line no-unused-vars
   const RelayCallStatusCodes = {
     OK: new BN('0'),
     RelayedCallFailed: new BN('1'),
@@ -51,7 +51,8 @@ contract('RelayHub', function ([_, relayOwner, __relay, otherRelay, sender, othe
       if (await testutils.isRsk()) {
           relay = web3.utils.toChecksumAddress(await web3.eth.personal.importRawKey(relayCallArgs.privateKey, 'password'));
           await web3.eth.personal.unlockAccount(relay, 'password');
-          await web3.eth.sendTransaction({ from: _, to: relay, value: web3.utils.toWei('5', 'ether') });
+          await web3.eth.sendTransaction({ from: _, to: relay, value: web3.utils.toWei('10', 'ether') });
+          await web3.eth.sendTransaction({ from: _, to: other, value: web3.utils.toWei('10', 'ether') });
       } else {
           relay = __relay;
       }
@@ -302,7 +303,7 @@ contract('RelayHub', function ([_, relayOwner, __relay, otherRelay, sender, othe
     });
 
     describe('unstaking', function () {
-      it('unstaked relays cannnot be unstaked', async function () {
+      it('unstaked relays cannot be unstaked', async function () {
         await expectRevert(relayHub.unstake(relay, { from: other }), 'canUnstake failed');
       });
 
@@ -314,7 +315,7 @@ contract('RelayHub', function ([_, relayOwner, __relay, otherRelay, sender, othe
           await relayHub.stake(relay, unstakeDelay, { value: stake, from: relayOwner });
         });
 
-        it('unregistered relays cannnot be unstaked', async function () {
+        it('unregistered relays cannot be unstaked', async function () {
           await expectRevert(relayHub.unstake(relay, { from: relayOwner }), 'canUnstake failed');
         });
 
@@ -772,23 +773,23 @@ contract('RelayHub', function ([_, relayOwner, __relay, otherRelay, sender, othe
       const amount = ether('0.01');
       await testDeposit(other, other, amount);
 
-      const { logs } = await relayHub.withdraw(amount.divn(2), { from: other });
-      expectEvent.inLogs(logs, 'Withdrawn', { dest: other, amount: amount.divn(2) });
+      const { logs } = await relayHub.withdraw(amount.divn(2), dest, { from: other });
+      expectEvent.inLogs(logs, 'Withdrawn', { account: other, dest, amount: amount.divn(2) });
     });
 
     it('accounts with deposits can withdraw all their balance', async function () {
       const amount = ether('0.01');
       await testDeposit(other, other, amount);
 
-      const { logs } = await relayHub.withdraw(amount, { from: other });
-      expectEvent.inLogs(logs, 'Withdrawn', { dest: other, amount });
+      const { logs } = await relayHub.withdraw(amount, dest, { from: other });
+      expectEvent.inLogs(logs, 'Withdrawn', { account: other, dest, amount });
     });
 
     it('accounts cannot withdraw more than their balance', async function () {
       const amount = ether('0.01');
       await testDeposit(other, other, amount);
 
-      await expectRevert(relayHub.withdraw(amount.addn(1), { from: other }), 'insufficient funds');
+      await expectRevert(relayHub.withdraw(amount.addn(1), dest, { from: other }), 'insufficient funds');
     });
   });
 
